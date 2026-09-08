@@ -22,7 +22,8 @@ if (args.Contains("--json"))
 
     var options = new JsonSerializerOptions
     {
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic)
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
+        WriteIndented = true
     };
 
     Console.WriteLine(JsonSerializer.Serialize(sysInfo, options));
