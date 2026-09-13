@@ -1,7 +1,15 @@
-﻿using System.Runtime.InteropServices;
-using System.Text.Encodings.Web;
+﻿using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
+using Core;
+
+#if NET10_0_OR_GREATER
+const string BuildNote = "збірка під net10.0";
+#else
+const string BuildNote = "збірка під net8.0";
+#endif
+
+EnvironmentReport report = EnvironmentInfo.Collect();
 
 if (args.Contains("--json"))
 {
@@ -10,12 +18,13 @@ if (args.Contains("--json"))
         App = "CrossApp – практикум з крос-платформного програмування",
         Student = "Гаргас Олег",
         Group = "ФЕІ-32с",
-        OSDescription = RuntimeInformation.OSDescription,
-        OSVersion = Environment.OSVersion.ToString(),
-        ProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
-        DotNetVersion = Environment.Version.ToString(),
-        Runtime = RuntimeInformation.FrameworkDescription,
-        BaseDirectory = AppContext.BaseDirectory,
+        BuildNote = BuildNote,
+        OSDescription = report.OsDescription,
+        Runtime = report.FrameworkDescription,
+        ProcessArchitecture = report.ProcessArchitecture.ToString(),
+        DetectedRid = report.DetectedRid,
+        ReportedRid = report.ReportedRid,
+        BaseDirectory = report.BaseDirectory,
         CurrentDirectory = Environment.CurrentDirectory,
         Domain = "Предметна область: Бібліотека. Сутності: Book, BookCopy, Reader, Loan"
     };
@@ -30,16 +39,16 @@ if (args.Contains("--json"))
 }
 else
 {
-    Console.WriteLine("CrossApp – практикум з крос-платформного програмування");
+    Console.WriteLine("CrossApp – інформація про середовище");
     Console.WriteLine("Студент: Гаргас Олег, група ФЕІ-32с");
+    Console.WriteLine($"Збірка: {BuildNote}");
     Console.WriteLine(new string('-', 52));
-    Console.WriteLine($"ОС (OSDescription)  : {RuntimeInformation.OSDescription}");
-    Console.WriteLine($"ОС (Environment)    : {Environment.OSVersion}");
-    Console.WriteLine($"Архітектура процесу : {RuntimeInformation.ProcessArchitecture}");
-    Console.WriteLine($"Версія .NET (CLR)   : {Environment.Version}");
-    Console.WriteLine($"Runtime             : {RuntimeInformation.FrameworkDescription}");
-    Console.WriteLine($"Каталог застосунку  : {AppContext.BaseDirectory}");
-    Console.WriteLine($"Поточний каталог    : {Environment.CurrentDirectory}");
+    Console.WriteLine($"ОС             : {report.OsDescription}");
+    Console.WriteLine($"Runtime        : {report.FrameworkDescription}");
+    Console.WriteLine($"Архітектура    : {report.ProcessArchitecture}");
+    Console.WriteLine($"RID (визначено): {report.DetectedRid}");
+    Console.WriteLine($"RID (від .NET) : {report.ReportedRid}");
+    Console.WriteLine($"Каталог        : {report.BaseDirectory}");
     Console.WriteLine(new string('-', 52));
     Console.WriteLine("Предметна область: Бібліотека. Сутності: Book, BookCopy, Reader, Loan");
 }
