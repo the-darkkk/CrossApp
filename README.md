@@ -2,12 +2,19 @@
 Наскрізний проєкт з крос-платформного програмування.
 Предметна область: Бібліотека. Сутності: Book, BookCopy, Reader, Loan.
 Призначення: облік видач примірників книг читачам.
-# Схема solution
+## Схема solution
 ```bash
-Project(s)
-----------
-src\Cli\Cli.csproj
-src\Core\Core.csproj
+.
+├── CrossApp.sln
+├── Dockerfile
+├── README.md
+└── src
+    ├── Cli
+    │   ├── Cli.csproj
+    │   └── Program.cs
+    └── Core
+        ├── Core.csproj
+        └── EnvironmentInfo.cs
 ```
 ## Запуск
 
