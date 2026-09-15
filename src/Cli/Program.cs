@@ -3,12 +3,6 @@ using System.Text.Json;
 using System.Text.Unicode;
 using Core;
 
-#if NET10_0_OR_GREATER
-const string BuildNote = "збірка під net10.0";
-#else
-const string BuildNote = "збірка під net8.0";
-#endif
-
 EnvironmentReport report = EnvironmentInfo.Collect();
 
 if (args.Contains("--json"))
@@ -18,7 +12,7 @@ if (args.Contains("--json"))
         App = "CrossApp – практикум з крос-платформного програмування",
         Student = "Гаргас Олег",
         Group = "ФЕІ-32с",
-        BuildNote = BuildNote,
+        BuildNote = report.BuildNote,
         OSDescription = report.OsDescription,
         Runtime = report.FrameworkDescription,
         ProcessArchitecture = report.ProcessArchitecture.ToString(),
@@ -41,7 +35,7 @@ else
 {
     Console.WriteLine("CrossApp – інформація про середовище");
     Console.WriteLine("Студент: Гаргас Олег, група ФЕІ-32с");
-    Console.WriteLine($"Збірка: {BuildNote}");
+    Console.WriteLine($"Збірка: {report.BuildNote}");
     Console.WriteLine(new string('-', 52));
     Console.WriteLine($"ОС             : {report.OsDescription}");
     Console.WriteLine($"Runtime        : {report.FrameworkDescription}");
