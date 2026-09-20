@@ -1,0 +1,20 @@
+[
+  {
+    "id": "B-101",
+    "isbn": "978-0-13-110362-7",
+    "title": "The C Programming Language",
+    "year": 1988
+  },
+  {
+    "id": "B-102",
+    "isbn": "978-0-13-235088-4",
+    "title": "Clean Code",
+    "year": 2008
+  },
+  {
+    "id": "B-103",
+    "isbn": "978-0-201-61622-4",
+    "title": "The Pragmatic Programmer",
+    "year": 1999
+  }
+]

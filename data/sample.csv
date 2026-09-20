@@ -1,0 +1,16 @@
+type;id;field1;field2;field3
+B;B-001;978-0-13-235088-4;Clean Code;2008
+B;B-002;978-0-201-61622-4;The Pragmatic Programmer;1999
+R;R-001;Олег Гаргас;+380501112233
+B;B-003;978-0-13-597444-5;Refactoring;2018
+R;R-002;Іван Франко;+380672223344
+B;B-004;978-0-262-03384-8;Introduction to Algorithms;2009
+R;R-003;Тарас Шевченко;+380933334455
+B;B-005;978-0-596-51774-8;JavaScript: The Good Parts;2008
+B;B-006;978-0-321-12521-7;Domain-Driven Design;2003
+R;R-004;Леся Українка;+380994445566
+B;B-007;978-0-13-449416-6;The Go Programming Language;2015
+B;B-008;978-0-13-110362-7;The C Programming Language;1988
+X;X-001;Невідомий запис;2020
+B;B-009;978-0-321-14653-3;TDD by Example;невідомо
+R;R-005;;+380500000000
