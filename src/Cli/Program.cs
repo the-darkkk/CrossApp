@@ -1,71 +1,156 @@
-﻿using Core.Dto;
+using Core.Domain;
+using Core.Dto;
 using Core.Import;
 
-string path = args.Length > 0 ? args[0] : Path.Combine("data", "sample.csv");
-
-if (!File.Exists(path))
+if (args.Length > 0 && !args[0].Equals("--demo", StringComparison.OrdinalIgnoreCase))
 {
-    Console.WriteLine($"Файл не знайдено: {Path.GetFullPath(path)}");
-    return 1;
+    string filePath = args[0];
+    if (File.Exists(filePath))
+    {
+        RunCustomImport(filePath);
+        return 0;
+    }
 }
 
-string extension = Path.GetExtension(path).ToLowerInvariant();
+RunLab04Demonstration();
+return 0;
 
-return extension switch
+static void RunLab04Demonstration()
 {
-    ".csv" => ProcessCsv(path),
-    ".json" => ProcessJson(path),
-    _ => HandleUnknownExtension(extension)
-};
+    Console.WriteLine("=== Сценарій 1: успіх ===");
 
-static int ProcessCsv(string filePath)
-{
-    MixedImportResult result = BookCsvImporter.Load(filePath);
+    // 1. Створення каталожної книги
+    Book book = Book.Create("B-001", "978-0-13-235088-4", "Clean Code", 2008, "Robert C. Martin");
+    Console.WriteLine($"[Створено книгу]: {book}");
 
-    Console.WriteLine($"=== Результат імпорту CSV ({Path.GetFileName(filePath)}) ===");
-    Console.WriteLine($"Книг знайдено: {result.Books.Count}");
-    foreach (BookDto b in result.Books.Take(3))
-        Console.WriteLine($" [Книга]  {b.Id,-6} {b.Isbn,-18} {b.Title,-28} {b.Year,4}");
+    // 2. Реєстрація примірників у захищену колекцію книги
+    BookCopy copy1 = book.AddCopy("BC-001");
+    BookCopy copy2 = book.AddCopy("BC-002");
+    Console.WriteLine($"  -> Додано примірник: {copy1}");
+    Console.WriteLine($"  -> Додано примірник: {copy2}");
+    Console.WriteLine($"  -> Стан книги: {book}");
 
-    Console.WriteLine($"Читачів знайдено: {result.Readers.Count}");
-    foreach (ReaderDto r in result.Readers.Take(3))
-        Console.WriteLine($" [Читач]  {r.Id,-6} {r.FullName,-22} {r.Phone}");
+    // 3. Створення читача
+    Reader reader = Reader.Create("R-001", "Олег Гаргас", "+380501112233", "oleh@example.com");
+    Console.WriteLine($"[Створено читача]: {reader}");
 
-    if (result.Errors.Count > 0)
-    {
-        Console.WriteLine($"Помилки ({result.Errors.Count}):");
-        foreach (string err in result.Errors)
-            Console.WriteLine($" ! {err}");
-    }
+    // 4. Оформлення видачі примірника (стан примірника змінюється на IsIssued = true)
+    DateTime issueDate = new(2026, 9, 20);
+    Loan loan = Loan.Open("L-001", copy1, reader.Id, issueDate, activeReaderLoansCount: 0);
+    Console.WriteLine($"[Оформлено видачу]: {loan}");
+    Console.WriteLine($"  -> Стан примірника після видачі: {copy1}");
+
+    // 5. Успішне повернення книги (стан примірника повертається в IsIssued = false, видача закривається)
+    DateTime returnDate = new(2026, 9, 28);
+    loan.Close(returnDate, copy1);
+    Console.WriteLine($"[Закрито видачу]: {loan}");
+    Console.WriteLine($"  -> Стан примірника після повернення: {copy1}");
+
+    // 6. Демонстрація DTO мапінгу (ToDto / FromDto) для збереження у сховище 5-го тижня
+    LoanDto loanDto = loan.ToDto();
+    Loan restoredLoan = Loan.FromDto(loanDto);
+    Console.WriteLine($"[Відновлено з DTO]: {restoredLoan}");
 
     Console.WriteLine();
-    Console.WriteLine($"СТАТИСТИКА: {result.FormatStats()}");
-    return 0;
-}
+    Console.WriteLine("=== Сценарій 2: порушення інваріантів ===");
 
-static int ProcessJson(string filePath)
-{
-    ImportResult<BookDto> result = BookJsonImporter.Load(filePath);
+    BookCopy testCopy = BookCopy.Create("BC-099", "978-0-201-61622-4");
+    Loan activeLoan = Loan.Open("L-099", testCopy, "R-001", new DateTime(2026, 9, 20), activeReaderLoansCount: 1);
 
-    Console.WriteLine($"=== Результат імпорту JSON ({Path.GetFileName(filePath)}) ===");
-    Console.WriteLine($"Завантажено записів: {result.Items.Count}");
-    foreach (BookDto b in result.Items.Take(5))
-        Console.WriteLine($" {b.Id,-6} {b.Isbn,-18} {b.Title,-28} {b.Year,4}");
+    Console.WriteLine($"Поточний стан для тестів: {testCopy}");
+    Console.WriteLine($"Поточний стан видачі: {activeLoan}\n");
 
-    if (result.Errors.Count > 0)
+    TryDo("повторна видача вже виданого примірника", () => testCopy.Issue());
+
+    TryDo("відкриття нової видачі на вже зайнятий примірник", () =>
+        Loan.Open("L-100", testCopy, "R-002", DateTime.UtcNow, activeReaderLoansCount: 1));
+
+    TryDo("порожній ідентифікатор примірника", () =>
+        BookCopy.Create("   ", "978-0-201-61622-4"));
+
+    TryDo("порожній ISBN примірника", () =>
+        BookCopy.Create("BC-101", ""));
+
+    TryDo("від'ємний/некоректний рік книги (< 1450)", () =>
+        Book.Create("B-999", "978-0-123456-78-9", "Стародавній манускрипт", 1200));
+
+    TryDo("дата повернення раніше дати видачі", () =>
+        activeLoan.Close(new DateTime(2026, 9, 10), testCopy));
+
+    TryDo("перевищення ліміту відкритих видач читача (>= 5)", () =>
     {
-        Console.WriteLine($"Помилки:");
-        foreach (string err in result.Errors)
-            Console.WriteLine($" ! {err}");
-    }
+        var freeCopy = BookCopy.Create("BC-555", "978-0-13-235088-4");
+        Loan.Open("L-555", freeCopy, "R-001", DateTime.UtcNow, activeReaderLoansCount: 5);
+    });
+
+    activeLoan.Close(new DateTime(2026, 9, 25), testCopy);
+    Console.WriteLine($"\n[Видачу L-099 успішно закрито]: стан = {activeLoan.Status}");
+
+    TryDo("повторне закриття закритої видачі (перехід Closed -> Closed)", () =>
+        activeLoan.Close(new DateTime(2026, 9, 26), testCopy));
+
+    TryDo("скасування закритої видачі (перехід Closed -> Cancelled)", () =>
+        activeLoan.Cancel("Помилковий запис", testCopy));
+
+    TryDo("відновлення FromDto з пошкодженого DTO", () =>
+        Loan.FromDto(new LoanDto("L-BAD", "BC-001", "R-001", new DateTime(2026, 9, 20), new DateTime(2026, 9, 15), LoanStatus.Closed)));
+
+    Console.WriteLine("\nСпостережуваний факт: стан об'єктів змінюється виключно через методи;");
+    Console.WriteLine("жодна невдала операція не порушила інваріанти моделі.");
 
     Console.WriteLine();
-    Console.WriteLine($"СТАТИСТИКА: {result.FormatStats()}");
-    return 0;
+
+    Console.WriteLine("=== Додаткове завдання 1: Зв'язок із тижнем 3 (ImportResult -> Сутності) ===");
+    string sampleCsvPath = Path.Combine("data", "sample.csv");
+    if (File.Exists(sampleCsvPath))
+    {
+        MixedImportResult rawResult = BookCsvImporter.Load(sampleCsvPath);
+        MixedDomainImportResult domainResult = rawResult.ToDomainEntities();
+
+        Console.WriteLine($"Файл: {Path.GetFileName(sampleCsvPath)}");
+        Console.WriteLine($"Успішно створено сутностей Book:   {domainResult.Books.Count}");
+        Console.WriteLine($"Успішно створено сутностей Reader: {domainResult.Readers.Count}");
+        Console.WriteLine($"Загальна кількість помилок:        {domainResult.Errors.Count}");
+        if (domainResult.Errors.Count > 0)
+        {
+            Console.WriteLine("Перелік помилок (синтаксичні + порушення доменних інваріантів):");
+            foreach (string err in domainResult.Errors)
+            {
+                Console.WriteLine($"  ! {err}");
+            }
+        }
+        Console.WriteLine($"СТАТИСТИКА: {domainResult.FormatStats()}");
+    }
 }
 
-static int HandleUnknownExtension(string ext)
+static void TryDo(string title, Action action)
 {
-    Console.WriteLine($"Помилка: непідтримуваний формат файлу '{ext}'. Очікується .csv або .json.");
-    return 1;
+    try
+    {
+        action();
+        Console.WriteLine($"  {title}: виняток НЕ спрацював — інваріант відсутній!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"  {title}: {ex.GetType().Name} — {ex.Message}");
+    }
+}
+
+static void RunCustomImport(string filePath)
+{
+    string ext = Path.GetExtension(filePath).ToLowerInvariant();
+    if (ext == ".csv")
+    {
+        MixedImportResult res = BookCsvImporter.Load(filePath);
+        MixedDomainImportResult domainRes = res.ToDomainEntities();
+        Console.WriteLine($"=== Імпорт CSV: {domainRes.FormatStats()} ===");
+        Console.WriteLine($"Книг: {domainRes.Books.Count}, Читачів: {domainRes.Readers.Count}, Помилок: {domainRes.Errors.Count}");
+    }
+    else if (ext == ".json")
+    {
+        ImportResult<BookDto> res = BookJsonImporter.Load(filePath);
+        DomainImportResult<Book> domainRes = res.ToDomainEntities();
+        Console.WriteLine($"=== Імпорт JSON: {domainRes.FormatStats()} ===");
+        Console.WriteLine($"Книг: {domainRes.Items.Count}, Помилок: {domainRes.Errors.Count}");
+    }
 }

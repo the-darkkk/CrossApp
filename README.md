@@ -1,53 +1,77 @@
-# CrossApp
-Наскрізний проєкт з крос-платформного програмування.
-Предметна область: Бібліотека. Сутності: Book, BookCopy, Reader, Loan.
-Призначення: облік видач примірників книг читачам.
-## Схема solution
-```bash
-.
-├── CrossApp.sln
-├── Dockerfile
-├── README.md
-└── src
-    ├── Cli
-    │   ├── Cli.csproj
-    │   └── Program.cs
-    └── Core
-        ├── Core.csproj
-        └── EnvironmentInfo.cs
+# CrossApp — Бібліотечна система (Lab 04)
+
+Наскрізний навчальний проєкт з крос-платформного програмування на базі .NET 8 / 10.
+Реалізація предметної області «Бібліотека» з акцентом на інкапсуляцію стану, захист бізнес-правил (інваріантів) та доменну модель.
+
+## Структура рішення
+
+```text
+src/
+├── Cli/                  # Точка входу: демонстрація сценаріїв та взаємодії
+└── Core/
+    ├── Domain/           # Доменна модель: сутності, інваріанти, життєвий цикл
+    ├── Dto/              # Контракти перенесення даних (тиждень 3)
+    └── Import/           # CSV/JSON імпортери сирих даних
 ```
-## Запуск
+
+## Запуск та демонстрація
 
 ```bash
-dotnet build
+# Запуск демонстрації
 dotnet run --project src/Cli
+
+# Запуск із користувацькими файлами (імпорт DTO -> Сутності)
+dotnet run --project src/Cli -- data/sample.csv
+dotnet run --project src/Cli -- data/sample.json
 ```
 
-Вивід у json-форматі:
+## Доменна модель
 
-```bash
-dotnet run --project src/Cli --json
+```mermaid
+classDiagram
+    direction LR
+    class Book {
+        +string Id
+        +string Isbn
+        +string Title
+        +int Year
+        +IReadOnlyList~BookCopy~ Copies
+        +AddCopy(copyId) BookCopy
+    }
+    class BookCopy {
+        +string Id
+        +string Isbn
+        +bool IsIssued
+        +Issue()
+        +Return()
+    }
+    class Reader {
+        +string Id
+        +string FullName
+        +string Phone
+    }
+    class Loan {
+        +string Id
+        +string BookCopyId
+        +string ReaderId
+        +LoanStatus Status
+        +Close(returnedOn, copy)
+        +Cancel(reason, copy)
+    }
+    Book "1" *-- "0..*" BookCopy
+    Loan --> BookCopy
+    Loan --> Reader
 ```
 
-## Публікація
+## Перелік доменних інваріантів
 
-```bash
-dotnet publish src/Cli -c Release -r win-x64 -f net10.0 --self-contained true
-```
-- `win-x64` - Windows 64-bit
-- `linux-x64` - Linux 64-bit
-- `osx-x64` - macOS 64-bit
-
-- `net10.0 / net8.0` - Версії .NET
-
-## Середовище
-.NET SDK 10.0/8.0
-
-## Розміри publish
-
-| RID | Режим | Розмір publish | Потрібен runtime |
-| --- | ----- | -------------- | ---------------- |
-| win-x64 | self-contained | ~70.5MB | Ні |
-| win-x64 | framework-dependent | ~0.2MB | Так (.NET 10.0/8.0) |
-| linux-x64 | self-contained | ~78.8MB | Ні |
-| linux-x64 | framework-dependent | ~0.1MB | Так (.NET 10.0/8.0) |
+| № | Правило (інваріант) | Опис обмеження | Виняток | Метод |
+|:---:|---|---|---|---|
+| 1 | Валідація обов'язкових ключів | `Id`, `Isbn`, `Title`, `FullName` не можуть бути порожніми | `ArgumentException` | Фабричні методи `Create` / `Open` |
+| 2 | Межі року видання | Рік книги повинен бути в діапазоні від 1450 до поточного року | `ArgumentOutOfRangeException` | `Book.Create` |
+| 3 | Унікальність примірників | Заборонено додавати примірник із дубльованим `Id` у межах однієї книги | `InvalidOperationException` | `Book.AddCopy` |
+| 4 | Захист від повторної видачі | Неможливо видати примірник, який уже має стан `IsIssued == true` | `InvalidOperationException` | `BookCopy.Issue`, `Loan.Open` |
+| 5 | Захист від некоректного повернення | Неможливо повернути примірник, який не значиться виданим | `InvalidOperationException` | `BookCopy.Return`, `Loan.Close` |
+| 6 | Хронологія дат видачі | Дата повернення книги не може передувати даті видачі | `ArgumentOutOfRangeException` | `Loan.Close`, `Loan.FromDto` |
+| 7 | Ліміт видач читача (2 сутності) | Заборонено оформляти видачу, якщо читач уже має >= 5 відкритих видач | `InvalidOperationException` | `Loan.Open` |
+| 8 | Контроль переходів станів | Дозволені лише переходи `Active -> Closed` та `Active -> Cancelled` | `InvalidOperationException` | `Loan.TransitionTo` |
