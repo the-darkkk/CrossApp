@@ -16,5 +16,18 @@
     "isbn": "978-0-201-61622-4",
     "title": "The Pragmatic Programmer",
     "year": 1999
+  },
+    {
+    "isbn": "978-0-201-61622-4",
+    "title": "The Pragmatic Programmer",
+    "year": 1999
+  },
+      {
+    "id" : "B-103",
+    "isbn": "zz",
+    "title": "The Pragmatic Programmer",
+    "year": 1111
   }
+
+  
 ]
