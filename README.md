@@ -1,4 +1,4 @@
-# CrossApp — Бібліотечна система (Lab 04)
+# CrossApp — Бібліотечна система
 
 Наскрізний навчальний проєкт з крос-платформного програмування на базі .NET 8 / 10.
 Реалізація предметної області «Бібліотека» з акцентом на інкапсуляцію стану, захист бізнес-правил (інваріантів) та доменну модель.
@@ -23,44 +23,6 @@ dotnet run --project src/Cli
 # Запуск із користувацькими файлами (імпорт DTO -> Сутності)
 dotnet run --project src/Cli -- data/sample.csv
 dotnet run --project src/Cli -- data/sample.json
-```
-
-## Доменна модель
-
-```mermaid
-classDiagram
-    direction LR
-    class Book {
-        +string Id
-        +string Isbn
-        +string Title
-        +int Year
-        +IReadOnlyList~BookCopy~ Copies
-        +AddCopy(copyId) BookCopy
-    }
-    class BookCopy {
-        +string Id
-        +string Isbn
-        +bool IsIssued
-        +Issue()
-        +Return()
-    }
-    class Reader {
-        +string Id
-        +string FullName
-        +string Phone
-    }
-    class Loan {
-        +string Id
-        +string BookCopyId
-        +string ReaderId
-        +LoanStatus Status
-        +Close(returnedOn, copy)
-        +Cancel(reason, copy)
-    }
-    Book "1" *-- "0..*" BookCopy
-    Loan --> BookCopy
-    Loan --> Reader
 ```
 
 ## Перелік доменних інваріантів
