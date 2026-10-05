@@ -1,31 +1,43 @@
 # CrossApp — Бібліотечна система
 
 Наскрізний навчальний проєкт з крос-платформного програмування на базі .NET 8 / 10.
-Реалізація предметної області «Бібліотека» з акцентом на інкапсуляцію стану, захист бізнес-правил (інваріантів) та доменну модель.
+Предметна область: «Бібліотека» (`Book`, `BookCopy`, `Reader`, `Loan`).
 
 ## Структура рішення
 
 ```text
 src/
-├── Cli/                  # Точка входу: демонстрація сценаріїв та взаємодії
+├── Cli/                  # Точка входу (Program.cs — Composition Root, ручний DI)
 └── Core/
-    ├── Domain/           # Доменна модель: сутності, інваріанти, життєвий цикл
-    ├── Dto/              # Контракти перенесення даних (тиждень 3)
-    └── Import/           # CSV/JSON імпортери сирих даних
+    ├── Abstractions/     # IBookStore (контракт сховища)
+    ├── Domain/           # Сутності (Book, BookCopy, Reader, Loan)
+    ├── Dto/              # DTO та формати серіалізації (BookDto, BookCopyDto тощо)
+    ├── Import/           # CSV/JSON імпортери
+    ├── Services/         # LendingService (бізнес-операції)
+    └── Storage/          # InMemoryBookStore, FileBookStore, CachingBookStore, StoreFactory
 ```
 
-## Запуск та демонстрація
+## Запуск
 
 ```bash
-# Запуск демонстрації
+# Режим у пам'яті (InMemoryBookStore)
 dotnet run --project src/Cli
 
-# Запуск із користувацькими файлами (імпорт DTO -> Сутності)
-dotnet run --project src/Cli -- data/sample.csv
-dotnet run --project src/Cli -- data/sample.json
+# Режим файлового сховища (FileBookStore, data/library.json)
+dotnet run --project src/Cli -- --file
 ```
 
-## Перелік доменних інваріантів
+## Сервісний шар та сховища
+
+- **Інтерфейс**: `IBookStore` (методи `List`, `GetById`, `Add`, `Update`, `Remove`, `Search`)
+- **Реалізації**:
+  - `InMemoryBookStore` — словник у пам'яті (`Dictionary<string, Book>`)
+  - `FileBookStore` — збереження у файл `data/library.json` через DTO
+  - `CachingBookStore` — декоратор із кешуванням списку
+- **Сервіс**: `LendingService` — залежить виключно від `IBookStore` (ручний DI через конструктор)
+- **Фабрика**: `StoreFactory` — створення сховища за аргументами CLI
+
+## Доменні інваріанти
 
 | № | Правило (інваріант) | Опис обмеження | Виняток | Метод |
 |:---:|---|---|---|---|

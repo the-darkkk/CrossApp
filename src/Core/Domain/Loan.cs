@@ -54,7 +54,7 @@ public sealed class Loan
         if (issuedOn == default)
             throw new ArgumentException("Дата видачі має бути вказана", nameof(issuedOn));
 
-        // Додаткове завдання 2: Інваріант двох сутностей (ліміт видач читача)
+        // ліміт відкритих видач читача
         if (activeReaderLoansCount >= MaxActiveLoansPerReader)
         {
             throw new InvalidOperationException(

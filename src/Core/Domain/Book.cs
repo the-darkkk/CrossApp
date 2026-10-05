@@ -82,10 +82,21 @@ public sealed class Book
         return copy;
     }
 
-    public BookDto ToDto() => new(Id, Isbn, Title, Year, Author);
+    public BookDto ToDto() => new(Id, Isbn, Title, Year, Author, Copies.Select(c => c.ToDto()).ToList());
 
-    public static Book FromDto(BookDto dto) =>
-        Create(dto.Id, dto.Isbn, dto.Title, dto.Year, dto.Author);
+    public static Book FromDto(BookDto dto)
+    {
+        var book = Create(dto.Id, dto.Isbn, dto.Title, dto.Year, dto.Author);
+        if (dto.Copies is not null)
+        {
+            foreach (var copyDto in dto.Copies)
+            {
+                var copy = BookCopy.FromDto(copyDto);
+                book._copies.Add(copy);
+            }
+        }
+        return book;
+    }
 
     public override string ToString() =>
         $"{Id} [{Isbn}] \"{Title}\" ({Year})" +
