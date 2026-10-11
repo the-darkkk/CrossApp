@@ -7,7 +7,7 @@ public static class BookCsvImporter
 {
     private const char Separator = ';';
 
-    public static MixedImportResult Load(string path)
+    public static MixedImportResult Load(string path, Action<string>? onSkipped = null)
     {
         var books = new List<BookDto>();
         var readers = new List<ReaderDto>();
@@ -21,11 +21,17 @@ public static class BookCsvImporter
             string line = lines[i];
 
             if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+            {
+                onSkipped?.Invoke($"рядок {number}: пропущено порожній рядок або коментар");
                 continue;
+            }
 
             // Пропуск рядка заголовків
             if (number == 1 && (line.StartsWith("type", StringComparison.OrdinalIgnoreCase) || line.StartsWith("id", StringComparison.OrdinalIgnoreCase)))
+            {
+                onSkipped?.Invoke($"рядок {number}: пропущено рядок заголовків");
                 continue;
+            }
 
             switch (ParseLine(line))
             {
@@ -36,7 +42,9 @@ public static class BookCsvImporter
                     readers.Add(reader.Value);
                     break;
                 case ParseFailed failed:
-                    errors.Add($"рядок {number}: {failed.Reason}");
+                    string err = $"рядок {number}: {failed.Reason}";
+                    errors.Add(err);
+                    onSkipped?.Invoke(err);
                     break;
             }
         }

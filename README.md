@@ -7,35 +7,43 @@
 
 ```text
 src/
-├── Cli/                  # Точка входу (Program.cs — Composition Root, ручний DI)
+├── Cli/                  # Точка входу (Program.cs, Sinks.cs)
 └── Core/
-    ├── Abstractions/     # IBookStore (контракт сховища)
+    ├── Abstractions/     # IBookStore, INotificationSink
     ├── Domain/           # Сутності (Book, BookCopy, Reader, Loan)
-    ├── Dto/              # DTO та формати серіалізації (BookDto, BookCopyDto тощо)
+    ├── Dto/              # DTO та формати серіалізації
+    ├── Events/           # CatalogChangeKind, CatalogChangedEventArgs
     ├── Import/           # CSV/JSON імпортери
-    ├── Services/         # LendingService (бізнес-операції)
-    └── Storage/          # InMemoryBookStore, FileBookStore, CachingBookStore, StoreFactory
+    ├── Services/         # LendingService, CatalogService
+    └── Storage/          # InMemoryBookStore, FileBookStore, CachingBookStore
+logs/
+└── app.log               # Лог подій
 ```
 
 ## Запуск
 
 ```bash
-# Режим у пам'яті (InMemoryBookStore)
+# Режим у пам'яті
 dotnet run --project src/Cli
 
-# Режим файлового сховища (FileBookStore, data/library.json)
+# Режим файлового сховища
 dotnet run --project src/Cli -- --file
 ```
 
-## Сервісний шар та сховища
+## Доменні події
 
-- **Інтерфейс**: `IBookStore` (методи `List`, `GetById`, `Add`, `Update`, `Remove`, `Search`)
-- **Реалізації**:
-  - `InMemoryBookStore` — словник у пам'яті (`Dictionary<string, Book>`)
-  - `FileBookStore` — збереження у файл `data/library.json` через DTO
-  - `CachingBookStore` — декоратор із кешуванням списку
-- **Сервіс**: `LendingService` — залежить виключно від `IBookStore` (ручний DI через конструктор)
-- **Фабрика**: `StoreFactory` — створення сховища за аргументами CLI
+- **Події**: `BookAdded`, `CopyIssued`, `CopyReturned` — позначають успішну зміну фонду або статусу видачі примірника.
+- **Оголошення та OnChanged**:
+```csharp
+public event EventHandler<CatalogChangedEventArgs>? Changed;
+
+private void OnChanged(Book p, CatalogChangeKind kind, int delta, string? copyId = null, string? readerId = null, DateTimeOffset? dueDate = null)
+{
+    int available = p.Copies.Count(c => !c.IsIssued);
+    Changed?.Invoke(this, new CatalogChangedEventArgs(p.Id, kind, delta, available, copyId, readerId, dueDate));
+    _sink?.Emit($"{kind}: {p.Id} ({p.Title})");
+}
+```
 
 ## Доменні інваріанти
 

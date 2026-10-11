@@ -1,41 +1,93 @@
 using Core.Abstractions;
 using Core.Domain;
+using Core.Events;
 
 namespace Core.Services;
 
 /// <summary>
 /// Сервіс бібліотечних операцій: бізнес-логіка додавання книг, видачі та повернення примірників.
-/// Залежить лише від абстракції IBookStore, а не від конкретного класу.
-/// Ін'єкція залежності через конструктор (ручний DI без контейнера).
+/// Підтримує доменні події Changed та опційний INotificationSink.
 /// </summary>
-public sealed class LendingService(IBookStore store)
+public sealed class LendingService(IBookStore store, INotificationSink? sink = null)
 {
     private readonly IBookStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly INotificationSink? _sink = sink;
+
+    public event EventHandler<CatalogChangedEventArgs>? Changed;
+
+    private void OnChanged(
+        Book p,
+        CatalogChangeKind kind,
+        int delta,
+        string? copyId = null,
+        string? readerId = null,
+        DateTimeOffset? dueDate = null)
+    {
+        int availableCopies = p.Copies.Count(c => !c.IsIssued);
+        var args = new CatalogChangedEventArgs(
+            p.Id,
+            kind,
+            delta,
+            availableCopies,
+            copyId,
+            readerId,
+            dueDate);
+
+        Changed?.Invoke(this, args);
+        _sink?.Emit($"{kind}: {p.Id} ({p.Title})");
+    }
 
     /// <summary>
     /// Додає нову книгу до каталогу бібліотеки.
-    /// Інваріанти перевіряє Book.Create, сховище перевіряє унікальність id.
     /// </summary>
-    public Book AddBook(string isbn, string title, int year, string? author = null)
+    public Book AddBook(string isbn, string title, int year, string? author = null, int initialCopies = 1)
     {
         var book = Book.Create(Guid.NewGuid().ToString("N")[..8], isbn, title, year, author);
+        for (int i = 1; i <= initialCopies; i++)
+        {
+            book.AddCopy($"BC-{book.Id}-{i:D2}");
+        }
         _store.Add(book);
+        OnChanged(book, CatalogChangeKind.BookAdded, delta: initialCopies > 0 ? initialCopies : 1);
         return book;
     }
 
     /// <summary>
-    /// Додає книгу з відомим id (наприклад, при імпорті з зовнішнього джерела).
+    /// Додає книгу з відомим id.
     /// </summary>
-    public Book AddBook(string id, string isbn, string title, int year, string? author = null)
+    public Book AddBook(string id, string isbn, string title, int year, string? author = null, int initialCopies = 0)
     {
         var book = Book.Create(id, isbn, title, year, author);
+        for (int i = 1; i <= initialCopies; i++)
+        {
+            book.AddCopy($"BC-{book.Id}-{i:D2}");
+        }
         _store.Add(book);
+        OnChanged(book, CatalogChangeKind.BookAdded, delta: initialCopies > 0 ? initialCopies : 1);
         return book;
+    }
+
+    /// <summary>
+    /// Постачання нових примірників книги до фонду бібліотеки.
+    /// </summary>
+    public void Receive(string bookId, int count)
+    {
+        if (count <= 0)
+            throw new ArgumentOutOfRangeException(nameof(count), count, "Кількість примірників має бути більшою за 0.");
+
+        var book = _store.GetById(bookId)
+            ?? throw new InvalidOperationException($"Немає книги з id={bookId}.");
+
+        for (int i = 1; i <= count; i++)
+        {
+            book.AddCopy($"BC-{book.Id}-{Guid.NewGuid().ToString("N")[..4]}");
+        }
+        _store.Update(book);
+        OnChanged(book, CatalogChangeKind.Received, delta: count);
     }
 
     /// <summary>
     /// Реєструє новий фізичний примірник книги та оновлює сховище.
-    /// Метод сутності Book.AddCopy з тижня 4 перевіряє унікальність примірника.
     /// </summary>
     public BookCopy RegisterCopy(string bookId, string copyId)
     {
@@ -43,13 +95,15 @@ public sealed class LendingService(IBookStore store)
             ?? throw new InvalidOperationException($"Немає книги з id={bookId}.");
         var copy = book.AddCopy(copyId);
         _store.Update(book);
+        OnChanged(book, CatalogChangeKind.BookAdded, delta: 1, copyId: copy.Id);
         return copy;
     }
 
     /// <summary>
-    /// Видача примірника книги читачу: створює Loan та змінює стан примірника.
+    /// Видача примірника книги читачу.
+    /// Подія піднімається лише після успішної зміни стану.
     /// </summary>
-    public Loan IssueCopy(string bookId, string copyId, string readerId)
+    public Loan IssueCopy(string bookId, string copyId, string readerId, DateTimeOffset? dueDate = null)
     {
         var book = _store.GetById(bookId)
             ?? throw new InvalidOperationException($"Немає книги з id={bookId}.");
@@ -64,11 +118,13 @@ public sealed class LendingService(IBookStore store)
             DateTime.Now);
 
         _store.Update(book);
+        DateTimeOffset due = dueDate ?? DateTimeOffset.Now.AddDays(14);
+        OnChanged(book, CatalogChangeKind.CopyIssued, delta: -1, copyId: copy.Id, readerId: readerId, dueDate: due);
         return loan;
     }
 
     /// <summary>
-    /// Повернення примірника книги: закриває видачу та повертає примірник до фонду.
+    /// Повернення примірника книги.
     /// </summary>
     public void ReturnCopy(string bookId, string copyId, Loan loan)
     {
@@ -80,6 +136,7 @@ public sealed class LendingService(IBookStore store)
 
         loan.Close(DateTime.Now, copy);
         _store.Update(book);
+        OnChanged(book, CatalogChangeKind.CopyReturned, delta: 1, copyId: copy.Id, readerId: loan.ReaderId);
     }
 
     /// <summary>
@@ -98,7 +155,10 @@ public sealed class LendingService(IBookStore store)
     public bool Remove(string id) => _store.Remove(id);
 
     /// <summary>
-    /// Додаткове завдання 2: Пошук книг за предикатом (підготовка до тижнів 6-7).
+    /// Пошук книг за предикатом (Func-делегат замість події для отримання результату).
     /// </summary>
-    public IReadOnlyList<Book> Search(Func<Book, bool> predicate) => _store.Search(predicate);
+    public IReadOnlyList<Book> FindAll(Func<Book, bool> predicate) =>
+        _store.List().Where(predicate).ToList();
+
+    public IReadOnlyList<Book> Search(Func<Book, bool> predicate) => FindAll(predicate);
 }

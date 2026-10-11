@@ -1,10 +1,12 @@
+using Cli;
 using Core;
 using Core.Abstractions;
-using Core.Domain;
+using Core.Events;
+using Core.Import;
 using Core.Services;
 using Core.Storage;
 
-// вибір сховища через аргумент --file
+// вибір сховища
 bool useFile = args.Contains("--file");
 string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "library.json");
 
@@ -14,116 +16,83 @@ IBookStore store = useFile
 
 var service = new LendingService(store);
 
-Console.WriteLine($"Сховище: {store.GetType().Name}");
-Console.WriteLine($"Шлях: {dataPath}\n");
+// шлях до логу
+var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
+Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+if (File.Exists(logPath))
+    File.Delete(logPath);
 
-// додавання книги, реєстрація примірника, видача та повернення
-Book created = service.AddBook("978-3-16-148410-0", "Нова книга з каталогу", 2024, "Автор Новий");
-Console.WriteLine($"[Додано книгу]: {created}");
+// перший підписник: локальний метод
+void OnCatalogChanged(object? sender, CatalogChangedEventArgs e)
+{
+    var details = e.ReaderId != null
+        ? (e.Kind == CatalogChangeKind.CopyIssued
+            ? $" (видано читачу {e.ReaderId} до {e.DueDate:dd.MM.yyyy})"
+            : $" (повернуто від читача {e.ReaderId})")
+        : "";
+    var line = $"{e.At:HH:mm:ss} {e.Kind,-12} {e.Id} {e.Delta,4:+0;-0} → залишок {e.QuantityAfter}{details}";
+    Console.WriteLine(line);
+    File.AppendAllText(logPath, line + Environment.NewLine);
+}
 
-BookCopy newCopy = service.RegisterCopy(created.Id, "BC-NEW-001");
-Console.WriteLine($"[Зареєстровано примірник]: {newCopy}");
+service.Changed += OnCatalogChanged;
 
-Loan loan = service.IssueCopy(created.Id, newCopy.Id, "R-001");
-Console.WriteLine($"[Видано примірник]: {loan}");
+// другий підписник: лямбда із замиканням
+int changes = 0;
+service.Changed += (_, _) => changes++;
 
-service.ReturnCopy(created.Id, newCopy.Id, loan);
-Console.WriteLine($"[Повернуто примірник]: {loan}\n");
+// додавання та зміна стану
+var created = service.AddBook("978-0-13-235088-4", "Clean Code", 2008, "Robert C. Martin", initialCopies: 2);
+var copy = created.Copies[0];
+var loan = service.IssueCopy(created.Id, copy.Id, "R-001");
+Console.WriteLine($"Подій отримано: {changes}");
 
-// список усіх книг
-Console.WriteLine("Список усіх книг:");
-foreach (Book b in service.All())
-    Console.WriteLine($"  {b.Id,-8} {b.Isbn,-22} {b.Title,-30} {b.Year,4} | Примірників: {b.Copies.Count}");
+// відписка: тиха операція
+service.Changed -= OnCatalogChanged;
+service.ReturnCopy(created.Id, copy.Id, loan);
+Console.WriteLine($"Подій отримано: {changes}");
 
-Console.WriteLine($"\nУсього книг у каталозі: {service.All().Count}\n");
-
-// пошук за id
-Console.WriteLine("Пошук за id:");
-Book? found = service.Find(created.Id);
-Console.WriteLine(found is not null ? $"[Знайдено]: {found}" : $"[Не знайдено]: id={created.Id}");
-
-Book? notFound = service.Find("НЕІСНУЮЧИЙ-ID");
-Console.WriteLine(notFound is not null ? $"[Знайдено]: {notFound}" : "[Не знайдено]: id=НЕІСНУЮЧИЙ-ID\n");
-
-// пошук за предикатом
-Console.WriteLine("Пошук за предикатом (від 2024 року):");
-IReadOnlyList<Book> recentBooks = service.Search(b => b.Year >= 2024);
-foreach (Book b in recentBooks)
-    Console.WriteLine($"  {b.Id,-8} {b.Title,-30} ({b.Year})");
-Console.WriteLine($"Знайдено: {recentBooks.Count}\n");
-
-// видалення книги
-Console.WriteLine("Видалення книги:");
-Book tempBook = service.AddBook("978-0-00-999999-9", "Тимчасова книга", 2020);
-bool removed = service.Remove(tempBook.Id);
-Console.WriteLine($"[Видалено тимчасову id={tempBook.Id}]: {removed}");
-Console.WriteLine($"Кількість книг у каталозі: {service.All().Count}\n");
-
-// обробка помилок
-Console.WriteLine("Обробка помилок:");
-
-// дубль id
+// сценарій відмови
 try
 {
-    service.AddBook(created.Id, "978-0-13-235088-4", "Дублікат", 2024);
-    Console.WriteLine("  дубль id: виняток не спрацював");
+    service.Receive(created.Id, -5);
+}
+catch (ArgumentOutOfRangeException ex)
+{
+    Console.WriteLine($"Помилка валідації: {ex.ParamName} ({ex.Message})");
+}
+
+try
+{
+    service.IssueCopy("НЕІСНУЮЧИЙ-ID", "BC-999", "R-001");
 }
 catch (InvalidOperationException ex)
 {
-    Console.WriteLine($"  дубль id: {ex.Message}");
+    Console.WriteLine($"Помилка інваріанту: {ex.Message}");
 }
 
-// неіснуючий id
-try
-{
-    service.RegisterCopy("НЕІСНУЮЧИЙ-ID", "BC-999");
-    Console.WriteLine("  неіснуючий id: виняток не спрацював");
-}
-catch (InvalidOperationException ex)
-{
-    Console.WriteLine($"  неіснуючий id: {ex.Message}");
-}
+// пошук через Func
+Console.WriteLine("\nКниги з роком видання до 2010 (FindAll):");
+var filtered = service.FindAll(b => b.Year < 2010);
+foreach (var b in filtered)
+    Console.WriteLine($"  {b.Id,-8} {b.Title,-30} ({b.Year}) | Примірників: {b.Copies.Count}");
 
-// повторна видача
-try
-{
-    Loan testLoan = service.IssueCopy(created.Id, newCopy.Id, "R-002");
-    try
-    {
-        service.IssueCopy(created.Id, newCopy.Id, "R-003");
-        Console.WriteLine("  повторна видача: виняток не спрацював");
-    }
-    catch (InvalidOperationException ex)
-    {
-        Console.WriteLine($"  повторна видача: {ex.Message}");
-    }
-    finally
-    {
-        service.ReturnCopy(created.Id, newCopy.Id, testLoan);
-    }
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"  помилка тесту видачі: {ex.Message}");
-}
+// додаткове завдання 1: INotificationSink
+Console.WriteLine("\nДодаткове завдання 1 (INotificationSink):");
+var sinkLog = Path.Combine(AppContext.BaseDirectory, "logs", "sink.log");
+var consoleSink = new ConsoleSink();
+var fileSink = new FileSink(sinkLog);
+var sinkService = new LendingService(store, consoleSink);
+sinkService.AddBook("978-0-12-345678-9", "Книга через Sink", 2023, "Автор", initialCopies: 1);
+fileSink.Emit("Прямий запис у FileSink");
 
-Console.WriteLine();
+// додаткове завдання 2: Action<string> для імпорту
+Console.WriteLine("\nДодаткове завдання 2 (Action<string> для пропущених рядків):");
+string csvPath = Path.Combine(AppContext.BaseDirectory, "data", "sample.csv");
+if (!File.Exists(csvPath))
+    csvPath = "data/sample.csv";
 
-// декоратор CachingBookStore
-Console.WriteLine("Декоратор CachingBookStore:");
-var innerStore = new InMemoryBookStore(SampleData.Books());
-var cachingStore = new CachingBookStore(innerStore);
-var cachingService = new LendingService(cachingStore);
-
-Console.WriteLine($"Книг у кеші (до додавання): {cachingService.All().Count}");
-Book cachedBook = cachingService.AddBook("978-0-00-000000-0", "Кешована книга", 2025);
-Console.WriteLine($"[Додано через декоратор]: {cachedBook.Id}");
-Console.WriteLine($"Книг у кеші (після скидання): {cachingService.All().Count}\n");
-
-// фабрика StoreFactory
-Console.WriteLine("Фабрика StoreFactory:");
-IBookStore factoryStore = StoreFactory.Create(args, dataPath, SampleData.Books());
-Console.WriteLine($"Створено тип: {factoryStore.GetType().Name}");
-Console.WriteLine($"Книг у сховищі: {factoryStore.List().Count}\n");
+var importResult = BookCsvImporter.Load(csvPath, msg => Console.WriteLine($"  [Пропущено]: {msg}"));
+Console.WriteLine($"Успішно імпортовано книг: {importResult.Books.Count}, читачів: {importResult.Readers.Count}");
 
 return 0;
