@@ -44,7 +44,24 @@ dotnet run --project src/Cli -- --file report-groups
 3. **`ByUnit`** — як розподіляються книги за одиницями/категоріями? (`GroupBy`, `Select`, `Count`, `Sum`, `OrderByDescending`).
 4. **`Totals`** — які загальні показники фонду? (`Count`, `Sum`, `Average`, `Max`).
 
+### Порівняння синтаксису LINQ (Query Syntax vs Method Syntax)
 
+**Синтаксис запитів (Query Syntax):**
+```csharp
+var query = from p in source
+            group p by p.Unit into g
+            orderby g.Sum(x => x.Quantity) descending
+            select new GroupSummary(g.Key, g.Count(), g.Sum(x => x.Quantity));
+```
+
+**Методний синтаксис (Method Syntax):**
+```csharp
+var query = source.GroupBy(p => p.Unit, StringComparer.OrdinalIgnoreCase)
+                  .Select(g => new GroupSummary(g.Key, g.Count(), g.Sum(p => p.Quantity)))
+                  .OrderByDescending(s => s.TotalQuantity);
+```
+ 
+Синтаксис запитів (`from ... group ... into`) є більш наочним при групуванні даних, оскільки структура коду візуально схожа на SQL. Натомість методний синтаксис є більш компактним, природним для C# та дозволяє зручно передавати додаткові параметри (наприклад, `StringComparer.OrdinalIgnoreCase` для ігнорування регістру).
 
 ## Доменні інваріанти
 
