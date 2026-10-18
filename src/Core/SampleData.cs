@@ -3,40 +3,42 @@ using Core.Domain;
 namespace Core;
 
 /// <summary>
-/// Початкові дані для демонстрації та тижня 7.
-/// 15 книг з предметної області «Бібліотека»; у кожної — по 1-2 примірники.
+/// Початкові дані для демонстрації та аналітичних звітів (20 записів з різними одиницями та залишками).
 /// </summary>
 public static class SampleData
 {
     /// <summary>
-    /// Повертає 15 книг-сутностей із зареєстрованими примірниками.
+    /// Повертає список 20 книг із різними одиницями виміру, жанрами та кількістю примірників.
     /// </summary>
     public static List<Book> Books()
     {
-        var books = new List<Book>
-        {
-            Create("B-001", "978-0-13-235088-4", "Clean Code", 2008, "Robert C. Martin",          "BC-001", "BC-002"),
-            Create("B-002", "978-0-201-61622-4", "The Pragmatic Programmer", 1999, "Andrew Hunt",  "BC-003"),
-            Create("B-003", "978-0-13-597444-5", "Refactoring", 2018, "Martin Fowler",             "BC-004", "BC-005"),
-            Create("B-004", "978-0-262-03384-8", "Introduction to Algorithms", 2009, "Thomas Cormen", "BC-006"),
-            Create("B-005", "978-0-596-51774-8", "JavaScript: The Good Parts", 2008, "Douglas Crockford", "BC-007"),
-            Create("B-006", "978-0-321-12521-7", "Domain-Driven Design", 2003, "Eric Evans",       "BC-008", "BC-009"),
-            Create("B-007", "978-0-13-449416-6", "The Go Programming Language", 2015, "Alan Donovan", "BC-010"),
-            Create("B-008", "978-0-13-110362-7", "The C Programming Language", 1988, "Brian Kernighan", "BC-011"),
-            Create("B-009", "978-0-321-14653-3", "Test-Driven Development", 2002, "Kent Beck",     "BC-012"),
-            Create("B-010", "978-0-13-468599-1", "The Clean Coder", 2011, "Robert C. Martin",      "BC-013"),
-            Create("B-011", "978-0-59-651798-4", "Head First Design Patterns", 2004, "Eric Freeman", "BC-014", "BC-015"),
-            Create("B-012", "978-0-13-476904-3", "Clean Architecture", 2017, "Robert C. Martin",   "BC-016"),
-            Create("B-013", "978-1-49-195016-0", "Programming Rust", 2021, "Jim Blandy",           "BC-017"),
-            Create("B-014", "978-0-13-468474-1", "Effective Java", 2017, "Joshua Bloch",           "BC-018"),
-            Create("B-015", "978-0-59-651798-4", "C# in Depth", 2019, "Jon Skeet",                 "BC-019", "BC-020"),
-        };
-
-        return books;
+        return
+        [
+            CreateWithCopies("B-001", "978-0-13-235088-4", "Clean Code", 2008, "Robert C. Martin", "прим.", "Програмування", 25),
+            CreateWithCopies("B-002", "978-0-201-61622-4", "The Pragmatic Programmer", 1999, "Andrew Hunt", "прим.", "Програмування", 15),
+            CreateWithCopies("B-003", "978-0-13-597444-5", "Refactoring", 2018, "Martin Fowler", "прим.", "Архітектура", 20),
+            CreateWithCopies("B-004", "978-0-262-03384-8", "Introduction to Algorithms", 2009, "Thomas Cormen", "том", "Алгоритми", 30),
+            CreateWithCopies("B-005", "978-0-596-51774-8", "JavaScript: The Good Parts", 2008, "Douglas Crockford", "прим.", "Програмування", 12),
+            CreateWithCopies("B-006", "978-0-321-12521-7", "Domain-Driven Design", 2003, "Eric Evans", "том", "Архітектура", 18),
+            CreateWithCopies("B-007", "978-0-13-449416-6", "The Go Programming Language", 2015, "Alan Donovan", "прим.", "Програмування", 14),
+            CreateWithCopies("B-008", "978-0-13-110362-7", "The C Programming Language", 1988, "Brian Kernighan", "прим.", "Класика", 2),
+            CreateWithCopies("B-009", "978-0-321-14653-3", "Test-Driven Development", 2002, "Kent Beck", "прим.", "Архітектура", 16),
+            CreateWithCopies("B-010", "978-0-13-468599-1", "The Clean Coder", 2011, "Robert C. Martin", "прим.", "Програмування", 22),
+            CreateWithCopies("B-011", "978-0-59-651798-4", "Head First Design Patterns", 2004, "Eric Freeman", "том", "Архітектура", 28),
+            CreateWithCopies("B-012", "978-0-13-476904-3", "Clean Architecture", 2017, "Robert C. Martin", "прим.", "Архітектура", 35),
+            CreateWithCopies("B-013", "978-1-49-195016-0", "Programming Rust", 2021, "Jim Blandy", "прим.", "Програмування", 19),
+            CreateWithCopies("B-014", "978-0-13-468474-1", "Effective Java", 2017, "Joshua Bloch", "прим.", "Програмування", 17),
+            CreateWithCopies("B-015", "978-0-59-651798-4", "C# in Depth", 2019, "Jon Skeet", "прим.", "Програмування", 24),
+            CreateWithCopies("B-016", "978-1-61729-453-2", "ASP.NET Core in Action", 2021, "Andrew Lock", "ел.вид.", "Програмування", 45),
+            CreateWithCopies("B-017", "978-0-201-48567-7", "Design Patterns", 1994, "Gang of Four", "том", "Класика", 3),
+            CreateWithCopies("B-018", "978-1-49-207799-2", "Concurrency in C# Cookbook", 2019, "Stephen Cleary", "ел.вид.", "Програмування", 40),
+            CreateWithCopies("B-019", "978-0-13-277804-6", "Computer Networks", 2010, "Andrew Tanenbaum", "том", "Класика", 26),
+            CreateWithCopies("B-020", "978-0-00-111222-3", "Software Engineering Digest", 2024, "IEEE Review", "журнал", "Періодика", 5),
+        ];
     }
 
     /// <summary>
-    /// Повертає 5 читачів для демонстрації.
+    /// Повертає список читачів для демонстрації.
     /// </summary>
     public static List<Reader> Readers() =>
     [
@@ -48,13 +50,58 @@ public static class SampleData
     ];
 
     /// <summary>
-    /// Створює книгу з примірниками в одному виклику.
+    /// Повертає тестові видачі для звітів Join / GroupJoin (Додаткове завдання 1).
     /// </summary>
-    private static Book Create(string id, string isbn, string title, int year, string author, params string[] copyIds)
+    public static List<Loan> Loans(IEnumerable<Book>? books = null)
     {
-        var book = Book.Create(id, isbn, title, year, author);
-        foreach (string copyId in copyIds)
-            book.AddCopy(copyId);
+        var bookList = (books ?? Books()).ToList();
+        var loans = new List<Loan>();
+
+        void TryAddLoan(string loanId, string bookId, string readerId, int daysAgo, bool isClosed)
+        {
+            var book = bookList.FirstOrDefault(b => b.Id == bookId);
+            if (book == null || book.Copies.Count == 0) return;
+            var copy = book.Copies.FirstOrDefault(c => !c.IsIssued) ?? book.Copies[0];
+            var issueDate = DateTime.Now.AddDays(-daysAgo);
+            if (isClosed)
+            {
+                var l = Loan.Create(loanId, copy.Id, readerId, issueDate, issueDate.AddDays(10), LoanStatus.Closed);
+                loans.Add(l);
+            }
+            else
+            {
+                var l = Loan.Open(loanId, copy, readerId, issueDate);
+                loans.Add(l);
+            }
+        }
+
+        TryAddLoan("L-001", "B-001", "R-001", 12, false);
+        TryAddLoan("L-002", "B-002", "R-001", 30, true);
+        TryAddLoan("L-003", "B-003", "R-002", 5, false);
+        TryAddLoan("L-004", "B-004", "R-002", 40, true);
+        TryAddLoan("L-005", "B-006", "R-002", 20, true);
+        TryAddLoan("L-006", "B-007", "R-003", 2, false);
+        TryAddLoan("L-007", "B-010", "R-004", 15, false);
+        TryAddLoan("L-008", "B-012", "R-004", 45, true);
+
+        return loans;
+    }
+
+    private static Book CreateWithCopies(
+        string id,
+        string isbn,
+        string title,
+        int year,
+        string author,
+        string unit,
+        string genre,
+        int copiesCount)
+    {
+        var book = Book.Create(id, isbn, title, year, author, unit, genre);
+        for (int i = 1; i <= copiesCount; i++)
+        {
+            book.AddCopy($"BC-{id}-{i:D2}");
+        }
         return book;
     }
 }

@@ -6,4 +6,6 @@ public record BookDto(
     string Title,
     int Year,
     string? Author = null,
-    IReadOnlyList<BookCopyDto>? Copies = null);
+    IReadOnlyList<BookCopyDto>? Copies = null,
+    string Unit = "прим.",
+    string? Genre = null);

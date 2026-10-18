@@ -15,26 +15,41 @@ public sealed class Book
     public string Title { get; }
     public int Year { get; }
     public string? Author { get; }
+    public string Unit { get; }
+    public string? Genre { get; }
+
+    public string Sku => Isbn;
+    public string Name => Title;
+    public int Quantity => _copies.Count;
 
     /// <summary>
     /// Захищена колекція примірників (доступ лише для читання назовні).
     /// </summary>
     public IReadOnlyList<BookCopy> Copies => _copies.AsReadOnly();
 
-    private Book(string id, string isbn, string title, int year, string? author)
+    private Book(string id, string isbn, string title, int year, string? author, string unit, string? genre)
     {
         Id = id;
         Isbn = isbn;
         Title = title;
         Year = year;
         Author = author;
+        Unit = unit;
+        Genre = genre;
     }
 
     /// <summary>
     /// Фабричний метод для створення сутності книги.
     /// Перевіряє всі інваріанти до виклику конструктора.
     /// </summary>
-    public static Book Create(string id, string isbn, string title, int year, string? author = null)
+    public static Book Create(
+        string id,
+        string isbn,
+        string title,
+        int year,
+        string? author = null,
+        string unit = "прим.",
+        string? genre = null)
     {
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("Ідентифікатор книги обов'язковий", nameof(id));
@@ -59,7 +74,9 @@ public sealed class Book
             isbn.Trim().ToUpperInvariant(),
             title.Trim(),
             year,
-            string.IsNullOrWhiteSpace(author) ? null : author.Trim());
+            string.IsNullOrWhiteSpace(author) ? null : author.Trim(),
+            string.IsNullOrWhiteSpace(unit) ? "прим." : unit.Trim(),
+            string.IsNullOrWhiteSpace(genre) ? null : genre.Trim());
     }
 
     /// <summary>
@@ -82,11 +99,11 @@ public sealed class Book
         return copy;
     }
 
-    public BookDto ToDto() => new(Id, Isbn, Title, Year, Author, Copies.Select(c => c.ToDto()).ToList());
+    public BookDto ToDto() => new(Id, Isbn, Title, Year, Author, Copies.Select(c => c.ToDto()).ToList(), Unit, Genre);
 
     public static Book FromDto(BookDto dto)
     {
-        var book = Create(dto.Id, dto.Isbn, dto.Title, dto.Year, dto.Author);
+        var book = Create(dto.Id, dto.Isbn, dto.Title, dto.Year, dto.Author, dto.Unit, dto.Genre);
         if (dto.Copies is not null)
         {
             foreach (var copyDto in dto.Copies)

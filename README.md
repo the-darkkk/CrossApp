@@ -7,43 +7,44 @@
 
 ```text
 src/
-├── Cli/                  # Точка входу (Program.cs, Sinks.cs)
+├── Cli/                  # Точка входу (Program.cs — підкоманди звітів)
 └── Core/
     ├── Abstractions/     # IBookStore, INotificationSink
     ├── Domain/           # Сутності (Book, BookCopy, Reader, Loan)
     ├── Dto/              # DTO та формати серіалізації
     ├── Events/           # CatalogChangeKind, CatalogChangedEventArgs
     ├── Import/           # CSV/JSON імпортери
+    ├── Reports/          # StockLine, GroupSummary, ReportService, LinqExtensions
     ├── Services/         # LendingService, CatalogService
     └── Storage/          # InMemoryBookStore, FileBookStore, CachingBookStore
 logs/
 └── app.log               # Лог подій
 ```
 
-## Запуск
+## Запуск звітів
 
 ```bash
-# Режим у пам'яті
-dotnet run --project src/Cli
+# Підкоманди звітів
+dotnet run --project src/Cli -- report-top       # Топ-5 залишків
+dotnet run --project src/Cli -- report-low       # Дефіцитні позиції (< 10)
+dotnet run --project src/Cli -- report-groups    # Групування за одиницею
+dotnet run --project src/Cli -- report-sum       # Агрегатні підсумки
+dotnet run --project src/Cli -- report-deferred  # Демо відкладеного виконання
+dotnet run --project src/Cli -- report-loans     # Join та GroupJoin
+dotnet run --project src/Cli -- report-bench     # Бенчмарк 100 000 записів
 
-# Режим файлового сховища
-dotnet run --project src/Cli -- --file
+# Запуск з файловим сховищем
+dotnet run --project src/Cli -- --file report-groups
 ```
 
-## Доменні події
+## Звіти LINQ
 
-- **Події**: `BookAdded`, `CopyIssued`, `CopyReturned` — позначають успішну зміну фонду або статусу видачі примірника.
-- **Оголошення та OnChanged**:
-```csharp
-public event EventHandler<CatalogChangedEventArgs>? Changed;
+1. **`LowStock`** — які книги мають дефіцитний залишок (< 10)? (`Where`, `OrderBy`, `ThenBy`, `Select`).
+2. **`TopByQuantity`** — які 5 книг мають найбільший залишок? (`OrderByDescending` / `TopBy`, `ThenBy`, `Take`, `Select`).
+3. **`ByUnit`** — як розподіляються книги за одиницями/категоріями? (`GroupBy`, `Select`, `Count`, `Sum`, `OrderByDescending`).
+4. **`Totals`** — які загальні показники фонду? (`Count`, `Sum`, `Average`, `Max`).
 
-private void OnChanged(Book p, CatalogChangeKind kind, int delta, string? copyId = null, string? readerId = null, DateTimeOffset? dueDate = null)
-{
-    int available = p.Copies.Count(c => !c.IsIssued);
-    Changed?.Invoke(this, new CatalogChangedEventArgs(p.Id, kind, delta, available, copyId, readerId, dueDate));
-    _sink?.Emit($"{kind}: {p.Id} ({p.Title})");
-}
-```
+
 
 ## Доменні інваріанти
 
