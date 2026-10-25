@@ -5,73 +5,81 @@ using Core.Reports;
 using Core.Services;
 using Core.Storage;
 
-// вибір сховища (тиждень 5)
-bool useFile = args.Contains("--file");
-string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "library.json");
+// налаштування джерела даних
+string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "catalog.json");
+if (!File.Exists(dataPath))
+    dataPath = Path.Combine(Directory.GetCurrentDirectory(), "data", "catalog.json");
 
-IBookStore store = useFile
-    ? new FileBookStore(dataPath)
-    : new InMemoryBookStore(SampleData.Books());
+IBookStore store = new InMemoryBookStore();
+var service = new CatalogService(store);
 
-var service = new LendingService(store);
-var items = service.All();
+// кооперативне скасування: токен і обробник Ctrl+C
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    cts.Cancel();
+};
 
-// підкоманди звітів (тиждень 7)
+if (args.Contains("--timeout") || args.Contains("--cancel"))
+{
+    cts.CancelAfter(TimeSpan.FromMilliseconds(1));
+}
+
+if (args.Contains("--corrupt"))
+{
+    dataPath = Path.Combine(Directory.GetCurrentDirectory(), "data", "sample.json");
+}
+
+// звіт про хід імпорту через IProgress (Додаткове завдання 3)
+IProgress<int>? progress = args.Contains("--progress")
+    ? new SynchronousProgress(percent => Console.Write($"\rПрогрес: {percent}%   "))
+    : null;
+
+// вибір підкоманди або імпорту за замовчуванням
 var command = args.FirstOrDefault(a => !a.StartsWith("--"));
 
-switch (command)
+try
 {
-    case "report-top":
-        Print(ReportService.TopByQuantity(items, 5));
-        break;
+    switch (command)
+    {
+        case "report-top":
+            Print(ReportService.TopByQuantity(SampleData.Books(), 5));
+            break;
 
-    case "report-low":
-        Print(ReportService.LowStock(items, 10));
-        break;
+        case "report-low":
+            Print(ReportService.LowStock(SampleData.Books(), 10));
+            break;
 
-    case "report-groups":
-        foreach (var g in ReportService.ByUnit(items))
-            Console.WriteLine($" {g.Key,-8} позицій: {g.Count,3} сумарно: {g.TotalQuantity,6}");
-        break;
+        case "report-groups":
+            foreach (var g in ReportService.ByUnit(SampleData.Books()))
+                Console.WriteLine($" {g.Key,-8} позицій: {g.Count,3} сумарно: {g.TotalQuantity,6}");
+            break;
 
-    case "report-sum":
-        var t = ReportService.Totals(items);
-        Console.WriteLine($" позицій {t.Items}, всього {t.Total}, середнє {t.Average:F2}, макс {t.Max}");
-        break;
+        case "report-sum":
+            var t = ReportService.Totals(SampleData.Books());
+            Console.WriteLine($" позицій {t.Items}, всього {t.Total}, середнє {t.Average:F2}, макс {t.Max}");
+            break;
 
-    case "report-deferred":
-        RunDeferredDemo(service);
-        break;
-
-    case "report-loans":
-        Console.WriteLine("Топ читачів за видачами (GroupJoin):");
-        var readers = SampleData.Readers();
-        var loans = SampleData.Loans(items);
-        foreach (var r in ReportService.TopReadersByLoans(readers, loans, 5))
-            Console.WriteLine($" {r.ReaderId,-6} {r.ReaderName,-16} видач: {r.TotalLoans,2} (активних: {r.ActiveLoans})");
-
-        Console.WriteLine("\nАктивні видачі з назвами книг (Join):");
-        foreach (var l in ReportService.ActiveLoansWithBooks(loans, items))
-            Console.WriteLine($" {l.LoanId,-6} {l.BookTitle,-28} примірник: {l.CopyId,-12} читач: {l.ReaderId}");
-        break;
-
-    case "report-bench":
-        Console.WriteLine("Бенчмарк фільтрації на 100 000 записах (5 повторів):");
-        var (withoutToList, withToList) = ReportService.BenchmarkFiltering(100_000);
-        Console.WriteLine($" Без проміжного ToList: {withoutToList} ms");
-        Console.WriteLine($" З проміжним ToList:    {withToList} ms");
-        break;
-
-    case null:
-        // запуск за замовчуванням: демонстрація відкладеного виконання та топ-звіт
-        RunDeferredDemo(service);
-        Console.WriteLine();
-        Print(ReportService.TopByQuantity(items, 5));
-        break;
-
-    default:
-        Console.WriteLine("report-top | report-low | report-groups | report-sum | report-deferred | report-loans | report-bench");
-        break;
+        default:
+            var importer = new JsonCatalogImporter();
+            var added = await service.ImportAsync(importer, dataPath, progress, cts.Token);
+            if (args.Contains("--progress")) Console.WriteLine();
+            Console.WriteLine($"Імпортовано записів: {added}");
+            break;
+    }
+}
+catch (OperationCanceledException)
+{
+    Console.WriteLine("Імпорт скасовано.");
+}
+catch (DomainException ex)
+{
+    Console.WriteLine($"Дані відхилено: {ex.Message}");
+}
+catch (FileNotFoundException)
+{
+    Console.WriteLine($"Файл не знайдено: {dataPath}");
 }
 
 return 0;
@@ -82,14 +90,7 @@ static void Print(IReadOnlyList<StockLine> lines)
         Console.WriteLine($" {l.Sku,-20} {l.Name,-32} {l.Quantity,4} {l.Unit}");
 }
 
-static void RunDeferredDemo(LendingService svc)
+sealed class SynchronousProgress(Action<int> reportAction) : IProgress<int>
 {
-    var source = svc.All().ToList();
-    var query = ReportService.QueryLowStock(source, 10);
-    Console.WriteLine($"Дефіцитних до змін: {query.Count()}");
-    source.Add(Book.Create("tmp00001", "978-0-99-999999-9", "Скоба", 2024, unit: "шт"));
-    Console.WriteLine($"Дефіцитних після змін: {query.Count()}");
-    var snapshot = query.ToList();
-    source.Clear();
-    Console.WriteLine($"У знімку лишилось: {snapshot.Count}");
+    public void Report(int value) => reportAction(value);
 }

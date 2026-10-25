@@ -39,7 +39,7 @@ public sealed class BookCopy
     {
         if (IsIssued)
         {
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Примірник {Id} (ISBN: {Isbn}) вже виданий, повторна видача неможлива");
         }
 
@@ -53,7 +53,7 @@ public sealed class BookCopy
     {
         if (!IsIssued)
         {
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Примірник {Id} (ISBN: {Isbn}) не був виданий, повернення неможливе");
         }
 

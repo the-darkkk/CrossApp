@@ -76,7 +76,7 @@ public sealed class LendingService(IBookStore store, INotificationSink? sink = n
             throw new ArgumentOutOfRangeException(nameof(count), count, "Кількість примірників має бути більшою за 0.");
 
         var book = _store.GetById(bookId)
-            ?? throw new InvalidOperationException($"Немає книги з id={bookId}.");
+            ?? throw new DomainException($"Немає книги з id={bookId}.");
 
         for (int i = 1; i <= count; i++)
         {
@@ -92,7 +92,7 @@ public sealed class LendingService(IBookStore store, INotificationSink? sink = n
     public BookCopy RegisterCopy(string bookId, string copyId)
     {
         var book = _store.GetById(bookId)
-            ?? throw new InvalidOperationException($"Немає книги з id={bookId}.");
+            ?? throw new DomainException($"Немає книги з id={bookId}.");
         var copy = book.AddCopy(copyId);
         _store.Update(book);
         OnChanged(book, CatalogChangeKind.BookAdded, delta: 1, copyId: copy.Id);
@@ -106,10 +106,10 @@ public sealed class LendingService(IBookStore store, INotificationSink? sink = n
     public Loan IssueCopy(string bookId, string copyId, string readerId, DateTimeOffset? dueDate = null)
     {
         var book = _store.GetById(bookId)
-            ?? throw new InvalidOperationException($"Немає книги з id={bookId}.");
+            ?? throw new DomainException($"Немає книги з id={bookId}.");
 
         var copy = book.Copies.FirstOrDefault(c => c.Id.Equals(copyId, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"Примірник {copyId} не знайдено у книзі {bookId}.");
+            ?? throw new DomainException($"Примірник {copyId} не знайдено у книзі {bookId}.");
 
         var loan = Loan.Open(
             Guid.NewGuid().ToString("N")[..8],
@@ -129,10 +129,10 @@ public sealed class LendingService(IBookStore store, INotificationSink? sink = n
     public void ReturnCopy(string bookId, string copyId, Loan loan)
     {
         var book = _store.GetById(bookId)
-            ?? throw new InvalidOperationException($"Немає книги з id={bookId}.");
+            ?? throw new DomainException($"Немає книги з id={bookId}.");
 
         var copy = book.Copies.FirstOrDefault(c => c.Id.Equals(copyId, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"Примірник {copyId} не знайдено у книзі {bookId}.");
+            ?? throw new DomainException($"Примірник {copyId} не знайдено у книзі {bookId}.");
 
         loan.Close(DateTime.Now, copy);
         _store.Update(book);
@@ -161,4 +161,64 @@ public sealed class LendingService(IBookStore store, INotificationSink? sink = n
         _store.List().Where(predicate).ToList();
 
     public IReadOnlyList<Book> Search(Func<Book, bool> predicate) => FindAll(predicate);
+
+    /// <summary>
+    /// Асинхронний імпорт каталогу книг із CancellationToken та необов'язковим звітом про прогрес (тиждень 8).
+    /// </summary>
+    public async Task<int> ImportAsync(
+        ICatalogImporter importer,
+        string path,
+        CancellationToken ct = default)
+    {
+        return await ImportAsync(importer, path, progress: null, ct);
+    }
+
+    /// <summary>
+    /// Асинхронний імпорт із прогресом IProgress (Додаткове завдання 3).
+    /// </summary>
+    public async Task<int> ImportAsync(
+        ICatalogImporter importer,
+        string path,
+        IProgress<int>? progress,
+        CancellationToken ct = default)
+    {
+        var items = await importer.LoadAsync(path, ct);
+        var added = 0;
+        for (var i = 0; i < items.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var item = items[i];
+            if (_store.GetById(item.Id) is null)
+            {
+                _store.Add(item);
+                OnChanged(item, CatalogChangeKind.BookAdded, item.Quantity);
+                added++;
+            }
+            progress?.Report((int)((i + 1) * 100.0 / items.Count));
+        }
+        return added;
+    }
+
+    /// <summary>
+    /// Потоковий імпорт через IAsyncEnumerable з await foreach (Додаткове завдання 1).
+    /// </summary>
+    public async Task<int> ImportStreamAsync(
+        ICatalogImporter importer,
+        string path,
+        IProgress<int>? progress = null,
+        CancellationToken ct = default)
+    {
+        var added = 0;
+        await foreach (var item in importer.ReadAsync(path, ct).WithCancellation(ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (_store.GetById(item.Id) is null)
+            {
+                _store.Add(item);
+                OnChanged(item, CatalogChangeKind.BookAdded, item.Quantity);
+                added++;
+            }
+        }
+        return added;
+    }
 }

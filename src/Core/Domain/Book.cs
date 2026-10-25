@@ -90,7 +90,7 @@ public sealed class Book
         string normalizedId = copyId.Trim();
         if (_copies.Any(c => c.Id.Equals(normalizedId, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Примірник з ідентифікатором {normalizedId} вже додано до книги {Id}");
         }
 

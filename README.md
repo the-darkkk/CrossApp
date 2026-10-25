@@ -7,71 +7,96 @@
 
 ```text
 src/
-├── Cli/                  # Точка входу (Program.cs — підкоманди звітів)
+├── Cli/                  # Консольний клієнт (топ-левел await, обробка Ctrl+C, прогрес)
 └── Core/
-    ├── Abstractions/     # IBookStore, INotificationSink
+    ├── Abstractions/     # IBookStore, ICatalogImporter, INotificationSink
     ├── Domain/           # Сутності (Book, BookCopy, Reader, Loan)
-    ├── Dto/              # DTO та формати серіалізації
+    ├── DomainException.cs# Доменний виняток порушення бізнес-правил
+    ├── Dto/              # DTO записів
     ├── Events/           # CatalogChangeKind, CatalogChangedEventArgs
-    ├── Import/           # CSV/JSON імпортери
     ├── Reports/          # StockLine, GroupSummary, ReportService, LinqExtensions
     ├── Services/         # LendingService, CatalogService
-    └── Storage/          # InMemoryBookStore, FileBookStore, CachingBookStore
-logs/
-└── app.log               # Лог подій
+    └── Storage/          # JsonCatalogImporter, InMemoryBookStore, FileBookStore
+tests/
+└── Core.Tests/           # xUnit тести для Core (без посилання на Cli)
 ```
 
-## Запуск звітів
+## Запуск та перевірка
 
 ```bash
-# Підкоманди звітів
-dotnet run --project src/Cli -- report-top       # Топ-5 залишків
-dotnet run --project src/Cli -- report-low       # Дефіцитні позиції (< 10)
-dotnet run --project src/Cli -- report-groups    # Групування за одиницею
-dotnet run --project src/Cli -- report-sum       # Агрегатні підсумки
-dotnet run --project src/Cli -- report-deferred  # Демо відкладеного виконання
-dotnet run --project src/Cli -- report-loans     # Join та GroupJoin
-dotnet run --project src/Cli -- report-bench     # Бенчмарк 100 000 записів
+# Асинхронний імпорт каталогу
+dotnet run --project src/Cli -- --file
 
-# Запуск з файловим сховищем
-dotnet run --project src/Cli -- --file report-groups
+# Перевірка скасування (таймаут або Ctrl+C)
+dotnet run --project src/Cli -- --timeout
+
+# Перевірка виявлення некоректних даних (DomainException)
+dotnet run --project src/Cli -- --corrupt
+
+# Запуск з відображенням прогресу IProgress
+dotnet run --project src/Cli -- --file --progress
+
+# Запуск усіх unit-тестів
+dotnet test
+
+# Збір покриття коду
+dotnet test --collect:"XPlat Code Coverage"
 ```
 
-## Звіти LINQ
+## Асинхронність та доменні винятки
 
-1. **`LowStock`** — які книги мають дефіцитний залишок (< 10)? (`Where`, `OrderBy`, `ThenBy`, `Select`).
-2. **`TopByQuantity`** — які 5 книг мають найбільший залишок? (`OrderByDescending` / `TopBy`, `ThenBy`, `Take`, `Select`).
-3. **`ByUnit`** — як розподіляються книги за одиницями/категоріями? (`GroupBy`, `Select`, `Count`, `Sum`, `OrderByDescending`).
-4. **`Totals`** — які загальні показники фонду? (`Count`, `Sum`, `Average`, `Max`).
+- **Асинхронні операції**: операції файлового введення-виведення (`LoadAsync`, `ReadAsync`, `ImportAsync`), які використовують неблокувальний `FileStream(useAsync: true)` та підтримку `CancellationToken`. Чисті обчислення (доменні правила, LINQ-звіти, операції в пам'яті) залишені синхронними, щоб не створювати зайвий оверхед.
+- **DomainException vs ArgumentException**:
+  - `ArgumentException` / `ArgumentOutOfRangeException` перевіряють формат аргументів методу (порожні поля, некоректні межі року або від'ємна кількість).
+  - `DomainException` сигналізує про порушення бізнес-правил стану сутностей (повторна видача вже виданого примірника, спроба повернути невидану книгу, перевищення ліміту відкритих видач читача).
 
-### Порівняння синтаксису LINQ (Query Syntax vs Method Syntax)
+### Фрагменти коду
 
-**Синтаксис запитів (Query Syntax):**
+**Асинхронне читання з перевіркою скасування (`LoadAsync`):**
 ```csharp
-var query = from p in source
-            group p by p.Unit into g
-            orderby g.Sum(x => x.Quantity) descending
-            select new GroupSummary(g.Key, g.Count(), g.Sum(x => x.Quantity));
+await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+var dtos = await JsonSerializer.DeserializeAsync<List<BookDto>>(stream, JsonOptions, cancellationToken: ct)
+    ?? throw new DomainException($"Файл {Path.GetFileName(path)} не містить списку.");
+
+for (var i = 0; i < dtos.Count; i++)
+{
+    ct.ThrowIfCancellationRequested();
+    try { result.Add(Book.FromDto(dtos[i])); }
+    catch (ArgumentException ex) { throw new DomainException($"Запис {i + 1}: {ex.Message}", ex); }
+}
 ```
 
-**Методний синтаксис (Method Syntax):**
+**Обробка скасування в Cli:**
 ```csharp
-var query = source.GroupBy(p => p.Unit, StringComparer.OrdinalIgnoreCase)
-                  .Select(g => new GroupSummary(g.Key, g.Count(), g.Sum(p => p.Quantity)))
-                  .OrderByDescending(s => s.TotalQuantity);
+try
+{
+    var added = await service.ImportAsync(importer, dataPath, progress, cts.Token);
+    Console.WriteLine($"Імпортовано записів: {added}");
+}
+catch (OperationCanceledException) { Console.WriteLine("Імпорт скасовано."); }
+catch (DomainException ex) { Console.WriteLine($"Дані відхилено: {ex.Message}"); }
 ```
- 
-Синтаксис запитів (`from ... group ... into`) є більш наочним при групуванні даних, оскільки структура коду візуально схожа на SQL. Натомість методний синтаксис є більш компактним, природним для C# та дозволяє зручно передавати додаткові параметри (наприклад, `StringComparer.OrdinalIgnoreCase` для ігнорування регістру).
 
-## Доменні інваріанти
+## Тести (xUnit)
 
-| № | Правило (інваріант) | Опис обмеження | Виняток | Метод |
-|:---:|---|---|---|---|
-| 1 | Валідація обов'язкових ключів | `Id`, `Isbn`, `Title`, `FullName` не можуть бути порожніми | `ArgumentException` | Фабричні методи `Create` / `Open` |
-| 2 | Межі року видання | Рік книги повинен бути в діапазоні від 1450 до поточного року | `ArgumentOutOfRangeException` | `Book.Create` |
-| 3 | Унікальність примірників | Заборонено додавати примірник із дубльованим `Id` у межах однієї книги | `InvalidOperationException` | `Book.AddCopy` |
-| 4 | Захист від повторної видачі | Неможливо видати примірник, який уже має стан `IsIssued == true` | `InvalidOperationException` | `BookCopy.Issue`, `Loan.Open` |
-| 5 | Захист від некоректного повернення | Неможливо повернути примірник, який не значиться виданим | `InvalidOperationException` | `BookCopy.Return`, `Loan.Close` |
-| 6 | Хронологія дат видачі | Дата повернення книги не може передувати даті видачі | `ArgumentOutOfRangeException` | `Loan.Close`, `Loan.FromDto` |
-| 7 | Ліміт видач читача (2 сутності) | Заборонено оформляти видачу, якщо читач уже має >= 5 відкритих видач | `InvalidOperationException` | `Loan.Open` |
-| 8 | Контроль переходів станів | Дозволені лише переходи `Active -> Closed` та `Active -> Cancelled` | `InvalidOperationException` | `Loan.TransitionTo` |
+| Тест | Що перевіряє | Очікуваний результат |
+|---|---|---|
+| `Receive_WithNegativeQuantity_Throws_AndKeepsState` | Інваріант аргументу кількості | `ArgumentOutOfRangeException`, стан не змінився |
+| `Add_RaisesChangedExactlyOnce` | Підняття події `Changed` | Рівно одна подія з типом `BookAdded` |
+| `ReturnCopy_WhenCopyNotIssued_ThrowsDomainException` | Інваріант повернення книги | `DomainException` («не був виданий»), статус не змінено |
+| `IssueCopy_WhenAlreadyIssued_ThrowsDomainException` | Інваріант повторної видачі | `DomainException` («вже виданий») |
+| `LowStock_CountsOnlyBelowThreshold` | Звіт `LowStock` на різних порогах | Точна кількість записів нижче порогу |
+| `TopByQuantity_IsDeterministic` | Стабільність сортування топ-N | Детермінований порядок за primary + secondary ключем |
+| `Totals_OnEmptyCollection_DoesNotThrow` | Обробка порожнього джерела | Без винятків, нульові показники `(0, 0, 0d, 0)` |
+| `ImportAsync_WhenAlreadyCancelled_Throws` | Перевірка попередньо скасованого токена | `OperationCanceledException` |
+| `ImportAsync_WithCorruptData_ThrowsDomainException` | Реакція на некоректні дані у файлі | `DomainException` із номером запису, файл видалено у `finally` |
+| `ImportAsync_WithLinkedToken_ThrowsOnTimeout` | Спрацювання таймауту у зв'язаних токенах | Скасовано таймаут-токеном, користувацький токен чистий |
+| `ImportStreamAsync_ImportsItemsSuccessfully` | Потоковий імпорт через `IAsyncEnumerable` | Усі записи імпортовано |
+| `ImportAsync_ReportsProgress` | Звіт прогресу `IProgress<int>` | Прогрес досягає 100% |
+
+## Додаткові завдання
+
+- **IAsyncEnumerable**: у `JsonCatalogImporter.ReadAsync` реалізовано потоковий імпорт з атрибутом `[EnumeratorCancellation]`, що читає дані через `JsonSerializer.DeserializeAsyncEnumerable` без завантаження всього масиву в пам'ять.
+- **Зв'язані токени**: перевірено створення `CancellationTokenSource.CreateLinkedTokenSource(userToken, timeoutToken)` та протестовано, що спрацьовує саме таймаут.
+- **IProgress<int>**: додано звітування прогресу у відсотках під час імпорту.
+- **Покриття коду**: покрито доменні сутності, сервіс, звіти та імпорт. Непокритими залишились дискові сховища минулих робіт (`FileBookStore`) та генератор `SampleData`, оскільки unit-тести згідно з вимогами не взаємодіють з реальною файловою системою.

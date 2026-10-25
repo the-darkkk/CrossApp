@@ -57,7 +57,7 @@ public sealed class Loan
         // ліміт відкритих видач читача
         if (activeReaderLoansCount >= MaxActiveLoansPerReader)
         {
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Неможливо відкрити видачу {id.Trim()} для читача {readerId.Trim()}: " +
                 $"перевищено ліміт відкритих видач (максимум {MaxActiveLoansPerReader}, наразі {activeReaderLoansCount})");
         }
@@ -178,7 +178,7 @@ public sealed class Loan
 
         if (!isAllowed)
         {
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Неприпустимий перехід стану видачі {Id}: неможливо перевести з {Status} у {newStatus}");
         }
 

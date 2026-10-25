@@ -47,7 +47,7 @@ public static class DomainImportExtensions
             {
                 entities.Add(Book.FromDto(dto));
             }
-            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or InvalidOperationException)
+            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or DomainException or InvalidOperationException)
             {
                 errors.Add($"Книга DTO [{dto.Id}] (ISBN: {dto.Isbn}): порушення інваріанту — {ex.Message}");
             }
@@ -68,7 +68,7 @@ public static class DomainImportExtensions
             {
                 books.Add(Book.FromDto(dto));
             }
-            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or InvalidOperationException)
+            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or DomainException or InvalidOperationException)
             {
                 errors.Add($"Книга DTO [{dto.Id}]: порушення інваріанту — {ex.Message}");
             }
@@ -80,7 +80,7 @@ public static class DomainImportExtensions
             {
                 readers.Add(Reader.FromDto(dto));
             }
-            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or InvalidOperationException)
+            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or DomainException or InvalidOperationException)
             {
                 errors.Add($"Читач DTO [{dto.Id}]: порушення інваріанту — {ex.Message}");
             }

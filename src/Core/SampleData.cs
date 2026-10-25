@@ -31,7 +31,7 @@ public static class SampleData
             CreateWithCopies("B-015", "978-0-59-651798-4", "C# in Depth", 2019, "Jon Skeet", "прим.", "Програмування", 24),
             CreateWithCopies("B-016", "978-1-61729-453-2", "ASP.NET Core in Action", 2021, "Andrew Lock", "ел.вид.", "Програмування", 45),
             CreateWithCopies("B-017", "978-0-201-48567-7", "Design Patterns", 1994, "Gang of Four", "том", "Класика", 3),
-            CreateWithCopies("B-018", "978-1-49-207799-2", "Concurrency in C# Cookbook", 2019, "Stephen Cleary", "ел.вид.", "Програмування", 40),
+            CreateWithCopies("B-018", "978-1-49-207799-2", "Concurrency in C# Cookbook", 2019, "Stephen Cleary", "ел.вид.", "Програмування", 45),
             CreateWithCopies("B-019", "978-0-13-277804-6", "Computer Networks", 2010, "Andrew Tanenbaum", "том", "Класика", 26),
             CreateWithCopies("B-020", "978-0-00-111222-3", "Software Engineering Digest", 2024, "IEEE Review", "журнал", "Періодика", 5),
         ];

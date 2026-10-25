@@ -37,4 +37,13 @@ public sealed class CatalogService(IBookStore store, INotificationSink? sink = n
     public Book? Find(string id) => _inner.Find(id);
 
     public IReadOnlyList<Book> FindAll(Func<Book, bool> predicate) => _inner.FindAll(predicate);
+
+    public Task<int> ImportAsync(ICatalogImporter importer, string path, CancellationToken ct = default) =>
+        _inner.ImportAsync(importer, path, progress: null, ct);
+
+    public Task<int> ImportAsync(ICatalogImporter importer, string path, IProgress<int>? progress, CancellationToken ct = default) =>
+        _inner.ImportAsync(importer, path, progress, ct);
+
+    public Task<int> ImportStreamAsync(ICatalogImporter importer, string path, IProgress<int>? progress = null, CancellationToken ct = default) =>
+        _inner.ImportStreamAsync(importer, path, progress, ct);
 }

@@ -1,0 +1,20 @@
+[
+  { "id": "B-001", "isbn": "978-0-13-235088-4", "title": "Clean Code", "year": 2008, "author": "Robert C. Martin", "unit": "прим." },
+  { "id": "B-002", "isbn": "978-0-201-61622-4", "title": "The Pragmatic Programmer", "year": 1999, "author": "Andrew Hunt", "unit": "прим." },
+  { "id": "B-003", "isbn": "978-0-13-597444-5", "title": "Refactoring", "year": 2018, "author": "Martin Fowler", "unit": "прим." },
+  { "id": "B-004", "isbn": "978-0-262-03384-8", "title": "Introduction to Algorithms", "year": 2009, "author": "Thomas Cormen", "unit": "том" },
+  { "id": "B-005", "isbn": "978-0-596-51774-8", "title": "JavaScript: The Good Parts", "year": 2008, "author": "Douglas Crockford", "unit": "прим." },
+  { "id": "B-006", "isbn": "978-0-321-12521-7", "title": "Domain-Driven Design", "year": 2003, "author": "Eric Evans", "unit": "том" },
+  { "id": "B-007", "isbn": "978-0-13-449416-6", "title": "The Go Programming Language", "year": 2015, "author": "Alan Donovan", "unit": "прим." },
+  { "id": "B-008", "isbn": "978-0-13-110362-7", "title": "The C Programming Language", "year": 1988, "author": "Brian Kernighan", "unit": "прим." },
+  { "id": "B-009", "isbn": "978-0-321-14653-3", "title": "Test-Driven Development", "year": 2002, "author": "Kent Beck", "unit": "прим." },
+  { "id": "B-010", "isbn": "978-0-13-468599-1", "title": "The Clean Coder", "year": 2011, "author": "Robert C. Martin", "unit": "прим." },
+  { "id": "B-011", "isbn": "978-0-59-651798-4", "title": "Head First Design Patterns", "year": 2004, "author": "Eric Freeman", "unit": "том" },
+  { "id": "B-012", "isbn": "978-0-13-476904-3", "title": "Clean Architecture", "year": 2017, "author": "Robert C. Martin", "unit": "прим." },
+  { "id": "B-013", "isbn": "978-1-49-195016-0", "title": "Programming Rust", "year": 2021, "author": "Jim Blandy", "unit": "прим." },
+  { "id": "B-014", "isbn": "978-0-13-468474-1", "title": "Effective Java", "year": 2017, "author": "Joshua Bloch", "unit": "прим." },
+  { "id": "B-015", "isbn": "978-0-59-651798-4", "title": "C# in Depth", "year": 2019, "author": "Jon Skeet", "unit": "прим." },
+  { "id": "B-016", "isbn": "978-1-61729-453-2", "title": "ASP.NET Core in Action", "year": 2021, "author": "Andrew Lock", "unit": "ел.вид." },
+  { "id": "B-017", "isbn": "978-0-201-48567-7", "title": "Design Patterns", "year": 1994, "author": "Gang of Four", "unit": "том" }
+]
+
