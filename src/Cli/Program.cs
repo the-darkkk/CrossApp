@@ -13,18 +13,20 @@ if (!File.Exists(dataPath))
 IBookStore store = new InMemoryBookStore();
 var service = new CatalogService(store);
 
-// кооперативне скасування: токен і обробник Ctrl+C
-using var cts = new CancellationTokenSource();
+using var ctsUser = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;
-    cts.Cancel();
+    ctsUser.Cancel();
 };
 
 if (args.Contains("--timeout") || args.Contains("--cancel"))
 {
-    cts.CancelAfter(TimeSpan.FromMilliseconds(1));
+    ctsUser.CancelAfter(TimeSpan.FromMilliseconds(1));
 }
+
+using var ctsTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+using var cts = CancellationTokenSource.CreateLinkedTokenSource(ctsUser.Token, ctsTimeout.Token);
 
 if (args.Contains("--corrupt"))
 {
