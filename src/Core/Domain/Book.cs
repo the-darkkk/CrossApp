@@ -101,6 +101,8 @@ public sealed class Book
 
     public BookDto ToDto() => new(Id, Isbn, Title, Year, Author, Copies.Select(c => c.ToDto()).ToList(), Unit, Genre);
 
+    public ProductDto ToProductDto() => new(Id, Sku, Name, Unit, Quantity);
+
     public static Book FromDto(BookDto dto)
     {
         var book = Create(dto.Id, dto.Isbn, dto.Title, dto.Year, dto.Author, dto.Unit, dto.Genre);
@@ -111,6 +113,18 @@ public sealed class Book
                 var copy = BookCopy.FromDto(copyDto);
                 book._copies.Add(copy);
             }
+        }
+        return book;
+    }
+
+    public static Book FromDto(ProductDto dto) => FromProductDto(dto);
+
+    public static Book FromProductDto(ProductDto dto)
+    {
+        var book = Create(dto.Id, dto.Sku, dto.Name, DateTime.UtcNow.Year, unit: dto.Unit);
+        for (int i = 1; i <= dto.Quantity; i++)
+        {
+            book.AddCopy($"BC-{book.Id}-{i:D2}");
         }
         return book;
     }

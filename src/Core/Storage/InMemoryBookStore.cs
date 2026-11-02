@@ -7,7 +7,7 @@ namespace Core.Storage;
 /// Реалізація сховища книг у пам'яті: Dictionary + початкові дані через конструктор.
 /// Після виходу з програми дані зникають.
 /// </summary>
-public sealed class InMemoryBookStore(IEnumerable<Book>? seed = null) : IBookStore
+public sealed class InMemoryBookStore(IEnumerable<Book>? seed = null) : ICatalogStore
 {
     private readonly Dictionary<string, Book> _items =
         (seed ?? []).ToDictionary(b => b.Id, StringComparer.OrdinalIgnoreCase);
@@ -29,7 +29,7 @@ public sealed class InMemoryBookStore(IEnumerable<Book>? seed = null) : IBookSto
     {
         ArgumentNullException.ThrowIfNull(item);
         if (_items.ContainsKey(item.Id))
-            throw new InvalidOperationException($"Запис з id={item.Id} уже існує.");
+            throw new DomainException($"Запис з id={item.Id} уже існує.");
         _items.Add(item.Id, item);
     }
 

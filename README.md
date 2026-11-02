@@ -7,96 +7,87 @@
 
 ```text
 src/
-├── Cli/                  # Консольний клієнт (топ-левел await, обробка Ctrl+C, прогрес)
+├── Cli/                  # Точка входу, конфігурація, appsettings.json, appsettings.Development.json
 └── Core/
-    ├── Abstractions/     # IBookStore, ICatalogImporter, INotificationSink
-    ├── Domain/           # Сутності (Book, BookCopy, Reader, Loan)
-    ├── DomainException.cs# Доменний виняток порушення бізнес-правил
-    ├── Dto/              # DTO записів
+    ├── Abstractions/     # IBookStore, ICatalogStore, ICatalogImporter, INotificationSink
+    ├── Configuration/    # AppOptions, StorageOptions, LoggingOptions, LibraryOptions
+    ├── Domain/           # Book, BookCopy, Reader, Loan, Product
+    ├── DomainException.cs# Доменні винятки бізнес-правил
+    ├── Dto/              # BookDto, ProductDto, LoanDto тощо
     ├── Events/           # CatalogChangeKind, CatalogChangedEventArgs
     ├── Reports/          # StockLine, GroupSummary, ReportService, LinqExtensions
     ├── Services/         # LendingService, CatalogService
-    └── Storage/          # JsonCatalogImporter, InMemoryBookStore, FileBookStore
+    └── Storage/          # FileCatalogStore, FileBookStore, InMemoryCatalogStore, JsonCatalogImporter
 tests/
-└── Core.Tests/           # xUnit тести для Core (без посилання на Cli)
+└── Core.Tests/           # xUnit тести
 ```
 
-## Запуск та перевірка
+## Запуск та конфігурація
 
 ```bash
-# Асинхронний імпорт каталогу
-dotnet run --project src/Cli -- --file
+# Експорт колекції у JSON
+dotnet run --project src/Cli -- export
 
-# Перевірка скасування (таймаут або Ctrl+C)
-dotnet run --project src/Cli -- --timeout
+# Імпорт колекції з JSON
+dotnet run --project src/Cli -- import
 
-# Перевірка виявлення некоректних даних (DomainException)
-dotnet run --project src/Cli -- --corrupt
+# Перевизначення шляху до даних (PowerShell)
+$env:CROSSAPP_DATA_PATH = "custom_data"
+dotnet run --project src/Cli -- export
+Remove-Item Env:\CROSSAPP_DATA_PATH
 
-# Запуск з відображенням прогресу IProgress
-dotnet run --project src/Cli -- --file --progress
+# Перевизначення вкладеного ключа (PowerShell)
+$env:CROSSAPP_Storage__FileName = "catalog.json"
+dotnet run --project src/Cli -- export
+Remove-Item Env:\CROSSAPP_Storage__FileName
 
-# Запуск усіх unit-тестів
+# Приклад для bash:
+# CROSSAPP_DATA_PATH=/tmp/data dotnet run --project src/Cli -- export
+# CROSSAPP_Integration__ApiKey=prod-key dotnet run --project src/Cli -- export
+
+# Запуск тестів
 dotnet test
-
-# Збір покриття коду
-dotnet test --collect:"XPlat Code Coverage"
 ```
 
-## Асинхронність та доменні винятки
+## Таблиця ключів конфігурації
 
-- **Асинхронні операції**: операції файлового введення-виведення (`LoadAsync`, `ReadAsync`, `ImportAsync`), які використовують неблокувальний `FileStream(useAsync: true)` та підтримку `CancellationToken`. Чисті обчислення (доменні правила, LINQ-звіти, операції в пам'яті) залишені синхронними, щоб не створювати зайвий оверхед.
-- **DomainException vs ArgumentException**:
-  - `ArgumentException` / `ArgumentOutOfRangeException` перевіряють формат аргументів методу (порожні поля, некоректні межі року або від'ємна кількість).
-  - `DomainException` сигналізує про порушення бізнес-правил стану сутностей (повторна видача вже виданого примірника, спроба повернути невидану книгу, перевищення ліміту відкритих видач читача).
+| Ключ конфігурації | Змінна середовища | За замовчуванням | Опис |
+|---|---|---|---|
+| `EnvironmentName` | `CROSSAPP_ENVIRONMENT` | `Development` | Профіль середовища (`Development` / `Production`) |
+| `Storage:DataPath` | `CROSSAPP_Storage__DataPath` або `CROSSAPP_DATA_PATH` | `data` | Каталог розміщення файлів даних |
+| `Storage:FileName` | `CROSSAPP_Storage__FileName` | `items.json` | Назва файлу каталогу |
+| `Logging:MinimumLevel` | `CROSSAPP_Logging__MinimumLevel` | `Information` (dev: `Debug`) | Рівень деталізації логів |
+| `Library:LoanDays` | `CROSSAPP_Library__LoanDays` | `14` (dev: `21`) | Термін видачі книги у днях |
+| `Integration:ApiKey` | `CROSSAPP_Integration__ApiKey` | `local-dev-key` (user-secrets) | API-ключ інтеграції (поза репозиторієм) |
 
-### Фрагменти коду
+## Особливості реалізації
 
-**Асинхронне читання з перевіркою скасування (`LoadAsync`):**
-```csharp
-await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
-var dtos = await JsonSerializer.DeserializeAsync<List<BookDto>>(stream, JsonOptions, cancellationToken: ct)
-    ?? throw new DomainException($"Файл {Path.GetFileName(path)} не містить списку.");
+1. **Профілі `Development` та `Production`**:
+   - `appsettings.json` містить базові налаштування (рівень логування `Information`, термін видачі 14 днів).
+   - `appsettings.Development.json` перекриває параметри для розробки (рівень `Debug`, термін видачі 21 день).
+   - Змінна `CROSSAPP_ENVIRONMENT` визначає активний профіль.
 
-for (var i = 0; i < dtos.Count; i++)
-{
-    ct.ThrowIfCancellationRequested();
-    try { result.Add(Book.FromDto(dtos[i])); }
-    catch (ArgumentException ex) { throw new DomainException($"Запис {i + 1}: {ex.Message}", ex); }
-}
-```
+2. **Кросплатформні шляхи**:
+   - Для побудови шляхів використано `Path.Combine`, який підставляє коректний системний роздільник (`\` для Windows, `/` для Linux/macOS).
+   - Відносний шлях `DataPath` резолвиться від `AppContext.BaseDirectory`, завдяки чому файл даних однаковий незалежно від того, з якої поточної папки (`cwd`) запущено програму.
 
-**Обробка скасування в Cli:**
-```csharp
-try
-{
-    var added = await service.ImportAsync(importer, dataPath, progress, cts.Token);
-    Console.WriteLine($"Імпортовано записів: {added}");
-}
-catch (OperationCanceledException) { Console.WriteLine("Імпорт скасовано."); }
-catch (DomainException ex) { Console.WriteLine($"Дані відхилено: {ex.Message}"); }
-```
+3. **Атомарний запис JSON**:
+   - У `FileCatalogStore` дані спочатку записуються в тимчасовий файл `items.json.tmp`, після чого замінюють основний через `File.Move(tmp, path, overwrite: true)`. Це гарантує цілісність даних при раптових збоях.
+   - Використано `JavaScriptEncoder.UnsafeRelaxedJsonEscaping`, щоб українські літери записувалися як UTF-8 символи, а не екранувалися в `\uXXXX`.
 
-## Тести (xUnit)
+4. **User-secrets**:
+   - Зберігаються поза репозиторієм: на Windows у `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json`.
+   - У `Cli.csproj` міститься лише ідентифікатор `<UserSecretsId>`, ключ `Integration:ApiKey` у Git не потрапляє. У консоль виводиться лише факт присутності та довжина ключа.
 
-| Тест | Що перевіряє | Очікуваний результат |
-|---|---|---|
-| `Receive_WithNegativeQuantity_Throws_AndKeepsState` | Інваріант аргументу кількості | `ArgumentOutOfRangeException`, стан не змінився |
-| `Add_RaisesChangedExactlyOnce` | Підняття події `Changed` | Рівно одна подія з типом `BookAdded` |
-| `ReturnCopy_WhenCopyNotIssued_ThrowsDomainException` | Інваріант повернення книги | `DomainException` («не був виданий»), статус не змінено |
-| `IssueCopy_WhenAlreadyIssued_ThrowsDomainException` | Інваріант повторної видачі | `DomainException` («вже виданий») |
-| `LowStock_CountsOnlyBelowThreshold` | Звіт `LowStock` на різних порогах | Точна кількість записів нижче порогу |
-| `TopByQuantity_IsDeterministic` | Стабільність сортування топ-N | Детермінований порядок за primary + secondary ключем |
-| `Totals_OnEmptyCollection_DoesNotThrow` | Обробка порожнього джерела | Без винятків, нульові показники `(0, 0, 0d, 0)` |
-| `ImportAsync_WhenAlreadyCancelled_Throws` | Перевірка попередньо скасованого токена | `OperationCanceledException` |
-| `ImportAsync_WithCorruptData_ThrowsDomainException` | Реакція на некоректні дані у файлі | `DomainException` із номером запису, файл видалено у `finally` |
-| `ImportAsync_WithLinkedToken_ThrowsOnTimeout` | Спрацювання таймауту у зв'язаних токенах | Скасовано таймаут-токеном, користувацький токен чистий |
-| `ImportStreamAsync_ImportsItemsSuccessfully` | Потоковий імпорт через `IAsyncEnumerable` | Усі записи імпортовано |
-| `ImportAsync_ReportsProgress` | Звіт прогресу `IProgress<int>` | Прогрес досягає 100% |
+## Доменні інваріанти
 
-## Додаткові завдання
-
-- **IAsyncEnumerable**: у `JsonCatalogImporter.ReadAsync` реалізовано потоковий імпорт з атрибутом `[EnumeratorCancellation]`, що читає дані через `JsonSerializer.DeserializeAsyncEnumerable` без завантаження всього масиву в пам'ять.
-- **Зв'язані токени**: перевірено створення `CancellationTokenSource.CreateLinkedTokenSource(userToken, timeoutToken)` та протестовано, що спрацьовує саме таймаут.
-- **IProgress<int>**: додано звітування прогресу у відсотках під час імпорту.
-- **Покриття коду**: покрито доменні сутності, сервіс, звіти та імпорт. Непокритими залишились дискові сховища минулих робіт (`FileBookStore`) та генератор `SampleData`, оскільки unit-тести згідно з вимогами не взаємодіють з реальною файловою системою.
+| № | Правило (інваріант) | Опис обмеження | Виняток | Метод |
+|:---:|---|---|---|---|
+| 1 | Валідація обов'язкових ключів | `Id`, `Isbn`, `Title`, `FullName` не можуть бути порожніми | `ArgumentException` | Фабричні методи `Create` / `Open` |
+| 2 | Межі року видання | Рік книги повинен бути в діапазоні від 1450 до поточного року | `ArgumentOutOfRangeException` | `Book.Create` |
+| 3 | Унікальність примірників | Заборонено додавати примірник із дубльованим `Id` у межах однієї книги | `DomainException` | `Book.AddCopy` |
+| 4 | Захист від повторної видачі | Неможливо видати примірник, який уже має стан `IsIssued == true` | `DomainException` | `BookCopy.Issue`, `Loan.Open` |
+| 5 | Захист від некоректного повернення | Неможливо повернути примірник, який не значиться виданим | `DomainException` | `BookCopy.Return`, `Loan.Close` |
+| 6 | Хронологія дат видачі | Дата повернення книги не може передувати даті видачі | `ArgumentOutOfRangeException` | `Loan.Close`, `Loan.FromDto` |
+| 7 | Ліміт видач читача (2 сутності) | Заборонено оформляти видачу, якщо читач уже має >= 5 відкритих видач | `DomainException` | `Loan.Open` |
+| 8 | Контроль переходів станів | Дозволені лише переходи `Active -> Closed` та `Active -> Cancelled` | `DomainException` | `Loan.TransitionTo` |

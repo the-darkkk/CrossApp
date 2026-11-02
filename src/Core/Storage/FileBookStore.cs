@@ -13,7 +13,12 @@ namespace Core.Storage;
 /// </summary>
 public sealed class FileBookStore(string path) : IBookStore
 {
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     private readonly Dictionary<string, Book> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path = Path.GetFullPath(path);
@@ -27,20 +32,42 @@ public sealed class FileBookStore(string path) : IBookStore
         if (_loaded) return;
         if (File.Exists(_path))
         {
-            var dtos = JsonSerializer.Deserialize<List<BookDto>>(File.ReadAllText(_path)) ?? [];
-            foreach (var dto in dtos) { var b = Book.FromDto(dto); _cache[b.Id] = b; }
+            var text = File.ReadAllText(_path);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                try
+                {
+                    var dtos = JsonSerializer.Deserialize<List<ProductDto>>(text, Options);
+                    if (dtos != null && dtos.Count > 0 && dtos[0].Sku != null)
+                    {
+                        foreach (var dto in dtos) { var b = Book.FromProductDto(dto); _cache[b.Id] = b; }
+                    }
+                    else
+                    {
+                        var bookDtos = JsonSerializer.Deserialize<List<BookDto>>(text, Options) ?? [];
+                        foreach (var dto in bookDtos) { var b = Book.FromDto(dto); _cache[b.Id] = b; }
+                    }
+                }
+                catch
+                {
+                    var bookDtos = JsonSerializer.Deserialize<List<BookDto>>(text, Options) ?? [];
+                    foreach (var dto in bookDtos) { var b = Book.FromDto(dto); _cache[b.Id] = b; }
+                }
+            }
         }
         _loaded = true;
     }
 
     /// <summary>
-    /// Серіалізація кешу у файл після кожної зміни.
+    /// Серіалізація кешу у файл після кожної зміни (атомарний запис через .tmp).
     /// </summary>
     private void Flush()
     {
+        var dtos = _cache.Values.Select(b => b.ToProductDto()).ToList();
+        var tmp = _path + ".tmp";
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path,
-            JsonSerializer.Serialize(_cache.Values.Select(b => b.ToDto()).ToList(), Options));
+        File.WriteAllText(tmp, JsonSerializer.Serialize(dtos, Options));
+        File.Move(tmp, _path, overwrite: true);
     }
 
     /// <summary>
