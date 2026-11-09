@@ -1,0 +1,77 @@
+@host = http://localhost:5080
+
+### Перевірка працездатності (Health Check)
+GET {{host}}/health
+
+### 1. Отримати список усіх книг
+GET {{host}}/api/books
+
+### 1a. Пагінація та пошук серед книг
+GET {{host}}/api/books?page=1&pageSize=3&search=Code
+
+### 1b. Фільтрація книг за автором
+GET {{host}}/api/books?author=Martin
+
+### 1c. Книги з малою кількістю примірників (залишок < 5)
+GET {{host}}/api/books/low-stock?threshold=5
+
+### 2. Створити нову книгу (-> 201 Created)
+# @name createBook
+POST {{host}}/api/books
+Content-Type: application/json
+
+{
+  "isbn": "978-0-13-449416-6",
+  "title": "Clean Architecture: A Craftsman's Guide",
+  "year": 2017,
+  "author": "Robert C. Martin",
+  "copies": 5
+}
+
+### Зберегти ідентифікатор із відповіді
+@bookId = {{createBook.response.body.id}}
+
+### 3. Спроба створення книги з невалідними даними (-> 400 Bad Request)
+POST {{host}}/api/books
+Content-Type: application/json
+
+{
+  "isbn": "",
+  "title": "",
+  "year": 1200,
+  "author": "",
+  "copies": -3
+}
+
+### 4. Отримати книгу за id (-> 200 OK)
+GET {{host}}/api/books/{{bookId}}
+
+### 5. Оновити інформацію про книгу (-> 200 OK)
+PUT {{host}}/api/books/{{bookId}}
+Content-Type: application/json
+
+{
+  "isbn": "978-0-13-449416-6",
+  "title": "Clean Architecture (Updated)",
+  "year": 2018,
+  "author": "Robert C. Martin",
+  "copies": 8
+}
+
+### 5a. Невалідне оновлення (-> 400 Bad Request)
+PUT {{host}}/api/books/{{bookId}}
+Content-Type: application/json
+
+{
+  "isbn": "",
+  "title": "",
+  "year": 3000,
+  "author": "",
+  "copies": -1
+}
+
+### 6. Видалити книгу (-> 204 No Content)
+DELETE {{host}}/api/books/{{bookId}}
+
+### 7. Перевірити видалення — очікуємо 404
+GET {{host}}/api/books/{{bookId}}

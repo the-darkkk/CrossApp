@@ -4,11 +4,18 @@ using Core.Domain;
 namespace Core.Storage;
 
 /// <summary>
-/// Аліас сховища каталогу в пам'яті для сумісності з шаблоном завдань.
+/// Аліас сховища каталогу в пам'яті для сумісності з шаблоном завдань та DI.
 /// </summary>
-public sealed class InMemoryCatalogStore(IEnumerable<Book>? seed = null) : ICatalogStore
+public sealed class InMemoryCatalogStore : ICatalogStore
 {
-    private readonly InMemoryBookStore _inner = new(seed);
+    private readonly InMemoryBookStore _inner;
+
+    public InMemoryCatalogStore() : this(SampleData.Books()) { }
+
+    public InMemoryCatalogStore(IEnumerable<Book>? seed)
+    {
+        _inner = new InMemoryBookStore(seed);
+    }
 
     public IReadOnlyList<Book> List() => _inner.List();
     public Book? GetById(string id) => _inner.GetById(id);
@@ -17,4 +24,3 @@ public sealed class InMemoryCatalogStore(IEnumerable<Book>? seed = null) : ICata
     public bool Remove(string id) => _inner.Remove(id);
     public IReadOnlyList<Book> Search(Func<Book, bool> predicate) => _inner.Search(predicate);
 }
-

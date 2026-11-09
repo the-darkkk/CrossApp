@@ -7,7 +7,8 @@
 
 ```text
 src/
-├── Cli/                  # Точка входу, конфігурація, appsettings.json, appsettings.Development.json
+├── Api/                  # Minimal API (ASP.NET Core), OpenAPI, Scalar, ендпоінти
+├── Cli/                  # Точка входу CLI, конфігурація
 └── Core/
     ├── Abstractions/     # IBookStore, ICatalogStore, ICatalogImporter, INotificationSink
     ├── Configuration/    # AppOptions, StorageOptions, LoggingOptions, LibraryOptions
@@ -19,7 +20,8 @@ src/
     ├── Services/         # LendingService, CatalogService
     └── Storage/          # FileCatalogStore, FileBookStore, InMemoryCatalogStore, JsonCatalogImporter
 tests/
-└── Core.Tests/           # xUnit тести
+├── Api.Tests/            # Інтеграційні тести API (WebApplicationFactory)
+└── Core.Tests/           # xUnit тести доменної моделі та сервісів
 ```
 
 ## Запуск та конфігурація
@@ -91,3 +93,25 @@ dotnet test
 | 6 | Хронологія дат видачі | Дата повернення книги не може передувати даті видачі | `ArgumentOutOfRangeException` | `Loan.Close`, `Loan.FromDto` |
 | 7 | Ліміт видач читача (2 сутності) | Заборонено оформляти видачу, якщо читач уже має >= 5 відкритих видач | `DomainException` | `Loan.Open` |
 | 8 | Контроль переходів станів | Дозволені лише переходи `Active -> Closed` та `Active -> Cancelled` | `DomainException` | `Loan.TransitionTo` |
+
+## Minimal API (Лабораторна 10)
+
+Запуск сервісу:
+```bash
+dotnet run --project src/Api
+```
+- Документація Scalar UI: `http://localhost:5080/scalar/v1`
+- OpenAPI JSON: `http://localhost:5080/openapi/v1.json`
+
+### Маршрути API
+
+| Метод | Маршрут | Опис | Тіло запиту | Коди |
+|---|---|---|---|---|
+| GET | `/health` | Перевірка стану API | — | 200 |
+| GET | `/api/books` | Список книг (`search`, `author`, `page`, `pageSize`) | — | 200 |
+| GET | `/api/books/{id}` | Книга за ID | — | 200, 404 |
+| GET | `/api/books/low-stock` | Книги з залишком примірників менше порогу (`threshold`) | — | 200 |
+| POST | `/api/books` | Створення книги | JSON (`isbn`, `title`, `year`, `author`, `copies`) | 201, 400, 409 |
+| PUT | `/api/books/{id}` | Оновлення книги | JSON (`isbn`, `title`, `year`, `author`, `copies`) | 200, 400, 404 |
+| DELETE | `/api/books/{id}` | Видалення книги | — | 204, 404 |
+
