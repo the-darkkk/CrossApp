@@ -28,7 +28,7 @@ public static class SampleData
             CreateWithCopies("B-012", "978-0-13-476904-3", "Clean Architecture", 2017, "Robert C. Martin", "прим.", "Архітектура", 35),
             CreateWithCopies("B-013", "978-1-49-195016-0", "Programming Rust", 2021, "Jim Blandy", "прим.", "Програмування", 19),
             CreateWithCopies("B-014", "978-0-13-468474-1", "Effective Java", 2017, "Joshua Bloch", "прим.", "Програмування", 17),
-            CreateWithCopies("B-015", "978-0-59-651798-4", "C# in Depth", 2019, "Jon Skeet", "прим.", "Програмування", 24),
+            CreateWithCopies("B-015", "978-1-61-729517-1", "C# in Depth", 2019, "Jon Skeet", "прим.", "Програмування", 24),
             CreateWithCopies("B-016", "978-1-61729-453-2", "ASP.NET Core in Action", 2021, "Andrew Lock", "ел.вид.", "Програмування", 45),
             CreateWithCopies("B-017", "978-0-201-48567-7", "Design Patterns", 1994, "Gang of Four", "том", "Класика", 3),
             CreateWithCopies("B-018", "978-1-49-207799-2", "Concurrency in C# Cookbook", 2019, "Stephen Cleary", "ел.вид.", "Програмування", 45),

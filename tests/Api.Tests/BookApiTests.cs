@@ -10,17 +10,20 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Api.Tests;
 
-public class BookApiTests : IClassFixture<WebApplicationFactory<Program>>
+public class BookApiTests : IClassFixture<TestWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TestWebApplicationFactory _factory;
     private readonly HttpClient _client;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public BookApiTests(WebApplicationFactory<Program> factory)
+    public BookApiTests(TestWebApplicationFactory factory)
     {
         _factory = factory;
         _client = factory.CreateClient();
     }
+
+    private static string GenerateIsbn() =>
+        $"978-{Random.Shared.Next(100, 999)}-{Random.Shared.Next(10000, 99999)}-{Random.Shared.Next(0, 9)}";
 
     [Fact]
     public async Task Health_ReturnsOk()
@@ -35,7 +38,8 @@ public class BookApiTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Post_ValidBook_Returns201Created_AndGetByLocation_Returns200Ok()
     {
-        var request = new SaveBookRequest("978-0-13-235088-4", "Чистий код", 2008, "Роберт Мартін", 3);
+        var isbn = GenerateIsbn();
+        var request = new SaveBookRequest(isbn, "Нова тестова книга", 2023, "Тестовий Автор", 3);
 
         var postResponse = await _client.PostAsJsonAsync("/api/books", request);
         Assert.Equal(HttpStatusCode.Created, postResponse.StatusCode);
@@ -61,6 +65,19 @@ public class BookApiTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Post_DuplicateIsbn_Returns409Conflict_WithProblemDetails()
+    {
+        // 978-0-13-235088-4 вже є в початкових даних (Clean Code)
+        var duplicate = new SaveBookRequest("978-0-13-235088-4", "Дублікат Clean Code", 2024, "Інший Автор", 1);
+
+        var response = await _client.PostAsJsonAsync("/api/books", duplicate);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Domain Rule Conflict", body);
+    }
+
+    [Fact]
     public async Task Post_InvalidBook_Returns400BadRequest_WithProblemDetails()
     {
         // Невалідний запит: порожні isbn та назва, від'ємна кількість примірників, некоректний рік
@@ -83,27 +100,28 @@ public class BookApiTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Put_ExistingBook_UpdatesAndReturns200Ok()
     {
-        var createReq = new SaveBookRequest("978-0-201-61622-4", "The Pragmatic Programmer", 1999, "Hunt & Thomas", 2);
+        var isbn = GenerateIsbn();
+        var createReq = new SaveBookRequest(isbn, "Книга для оновлення", 2020, "Автор 2", 2);
         var postResponse = await _client.PostAsJsonAsync("/api/books", createReq);
         Assert.Equal(HttpStatusCode.Created, postResponse.StatusCode);
         var created = await postResponse.Content.ReadFromJsonAsync<BookDto>(JsonOptions);
         Assert.NotNull(created);
 
-        var updateReq = new SaveBookRequest("978-0-201-61622-4", "The Pragmatic Programmer (20th Anniv)", 2019, "Hunt & Thomas", 5);
+        var updateReq = new SaveBookRequest(isbn, "Оновлена назва книги", 2021, "Автор 2", 5);
         var putResponse = await _client.PutAsJsonAsync($"/api/books/{created.Id}", updateReq);
         Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
         var updated = await putResponse.Content.ReadFromJsonAsync<BookDto>(JsonOptions);
         Assert.NotNull(updated);
-        Assert.Equal("The Pragmatic Programmer (20th Anniv)", updated.Title);
-        Assert.Equal(2019, updated.Year);
+        Assert.Equal("Оновлена назва книги", updated.Title);
+        Assert.Equal(2021, updated.Year);
         Assert.Equal(5, updated.Copies);
     }
 
     [Fact]
     public async Task Put_NonExistentBook_Returns404NotFound()
     {
-        var updateReq = new SaveBookRequest("978-0-123456", "Невідома книга", 2020, "Автор", 1);
+        var updateReq = new SaveBookRequest(GenerateIsbn(), "Невідома книга", 2020, "Автор", 1);
         var response = await _client.PutAsJsonAsync("/api/books/no-such-id-404", updateReq);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -111,8 +129,10 @@ public class BookApiTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Put_InvalidBook_Returns400BadRequest()
     {
-        var createReq = new SaveBookRequest("978-0-321-12521-7", "DDD", 2003, "Eric Evans", 1);
+        var isbn = GenerateIsbn();
+        var createReq = new SaveBookRequest(isbn, "Книга для перевірки валідації", 2020, "Автор 3", 1);
         var postResponse = await _client.PostAsJsonAsync("/api/books", createReq);
+        Assert.Equal(HttpStatusCode.Created, postResponse.StatusCode);
         var created = await postResponse.Content.ReadFromJsonAsync<BookDto>(JsonOptions);
         Assert.NotNull(created);
 
@@ -124,7 +144,8 @@ public class BookApiTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Delete_ExistingBook_Returns204NoContent_AndSubsequentGetReturns404()
     {
-        var createReq = new SaveBookRequest("978-0-596-52068-7", "JavaScript: The Good Parts", 2008, "Douglas Crockford", 1);
+        var isbn = GenerateIsbn();
+        var createReq = new SaveBookRequest(isbn, "Книга для видалення", 2022, "Автор 4", 1);
         var postResponse = await _client.PostAsJsonAsync("/api/books", createReq);
         Assert.Equal(HttpStatusCode.Created, postResponse.StatusCode);
         var created = await postResponse.Content.ReadFromJsonAsync<BookDto>(JsonOptions);
@@ -161,16 +182,13 @@ public class BookApiTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Get_WithAuthorFilter_ReturnsFiltered()
     {
-        var request = new SaveBookRequest("978-0-13-110362-7", "The C Programming Language", 1988, "Kernighan", 2);
-        await _client.PostAsJsonAsync("/api/books", request);
-
-        var response = await _client.GetAsync("/api/books?author=Kernighan");
+        var response = await _client.GetAsync("/api/books?author=Martin");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var items = await response.Content.ReadFromJsonAsync<List<BookDto>>(JsonOptions);
         Assert.NotNull(items);
         Assert.NotEmpty(items);
-        Assert.All(items, b => Assert.Contains("Kernighan", b.Author, StringComparison.OrdinalIgnoreCase));
+        Assert.All(items, b => Assert.Contains("Martin", b.Author, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -201,11 +219,11 @@ public class BookApiTests : IClassFixture<WebApplicationFactory<Program>>
         {
             builder.ConfigureServices(services =>
             {
-                services.AddSingleton<ICatalogStore, ConflictCatalogStore>();
+                services.AddScoped<ICatalogStore, ConflictCatalogStore>();
             });
         }).CreateClient();
 
-        var request = new SaveBookRequest("978-0-13-235088-4", "Конфліктна книга", 2021, "Автор", 1);
+        var request = new SaveBookRequest(GenerateIsbn(), "Конфліктна книга", 2021, "Автор", 1);
         var response = await clientWithConflict.PostAsJsonAsync("/api/books", request);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);

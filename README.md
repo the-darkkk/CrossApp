@@ -9,18 +9,10 @@
 src/
 ├── Api/                  # Minimal API (ASP.NET Core), OpenAPI, Scalar, ендпоінти
 ├── Cli/                  # Точка входу CLI, конфігурація
-└── Core/
-    ├── Abstractions/     # IBookStore, ICatalogStore, ICatalogImporter, INotificationSink
-    ├── Configuration/    # AppOptions, StorageOptions, LoggingOptions, LibraryOptions
-    ├── Domain/           # Book, BookCopy, Reader, Loan, Product
-    ├── DomainException.cs# Доменні винятки бізнес-правил
-    ├── Dto/              # BookDto, ProductDto, LoanDto тощо
-    ├── Events/           # CatalogChangeKind, CatalogChangedEventArgs
-    ├── Reports/          # StockLine, GroupSummary, ReportService, LinqExtensions
-    ├── Services/         # LendingService, CatalogService
-    └── Storage/          # FileCatalogStore, FileBookStore, InMemoryCatalogStore, JsonCatalogImporter
+├── Core/                 # Доменна модель, інтерфейси (чистий C#, без EF Core)
+└── Infrastructure/       # EF Core, AppDbContext, EfCatalogStore, SQLite, Migrations
 tests/
-├── Api.Tests/            # Інтеграційні тести API (WebApplicationFactory)
+├── Api.Tests/            # Інтеграційні тести API та EfCatalogStore
 └── Core.Tests/           # xUnit тести доменної моделі та сервісів
 ```
 
@@ -94,7 +86,7 @@ dotnet test
 | 7 | Ліміт видач читача (2 сутності) | Заборонено оформляти видачу, якщо читач уже має >= 5 відкритих видач | `DomainException` | `Loan.Open` |
 | 8 | Контроль переходів станів | Дозволені лише переходи `Active -> Closed` та `Active -> Cancelled` | `DomainException` | `Loan.TransitionTo` |
 
-## Minimal API (Лабораторна 10)
+## Minimal API
 
 Запуск сервісу:
 ```bash
@@ -114,4 +106,36 @@ dotnet run --project src/Api
 | POST | `/api/books` | Створення книги | JSON (`isbn`, `title`, `year`, `author`, `copies`) | 201, 400, 409 |
 | PUT | `/api/books/{id}` | Оновлення книги | JSON (`isbn`, `title`, `year`, `author`, `copies`) | 200, 400, 404 |
 | DELETE | `/api/books/{id}` | Видалення книги | — | 204, 404 |
+
+## База даних SQLite та EF Core
+
+Постійне сховище даних SQLite за допомогою Entity Framework Core.
+- **Підключення:** ключ `ConnectionStrings:AppDb` у `appsettings.json` (за замовчуванням `Data Source=data/app.db`).
+- **Сховище:** `EfCatalogStore` (реалізує `ICatalogStore` та `IAsyncCatalogStore`), зареєстровано як `Scoped`.
+- **Контекст:** `AppDbContext` (`Scoped`), моделі зберігання: `BookRow` 1:N `CopyRow` (каскадне видалення `DeleteBehavior.Cascade`).
+
+### Міграція бд
+
+```bash
+# Створення нової міграції
+dotnet ef migrations add <MigrationName> --project src/Infrastructure --startup-project src/Api
+
+# Застосування міграцій до бази даних
+dotnet ef database update --project src/Infrastructure --startup-project src/Api
+
+# Перегляд таблиць у SQLite
+sqlite3 src/Api/data/app.db ".tables"
+```
+
+### Скидання бд
+
+```bash
+# 1. Видалити файл бази даних (PowerShell)
+Remove-Item src\Api\data\app.db* -Force
+
+# 2. Наново накатити схему з міграцій
+dotnet ef database update --project src/Infrastructure --startup-project src/Api
+```
+При запуску в середовищі `Development` сервіс автоматично застосовує міграції (`Database.Migrate()`) та заповнює базу початковими даними при першому старті.
+
 
