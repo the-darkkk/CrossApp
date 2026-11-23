@@ -6,10 +6,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddHttpClient("BooksApi", c =>
-    c.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5080"));
+var apiBaseUrl = builder.Configuration["Api:BaseUrl"]
+    ?? throw new InvalidOperationException("Не задано конфігураційний параметр Api:BaseUrl.");
 
-builder.Services.AddScoped<BooksApiClient>();
+builder.Services.AddHttpClient<BooksApiClient>(c =>
+    c.BaseAddress = new Uri(apiBaseUrl));
 
 var app = builder.Build();
 
