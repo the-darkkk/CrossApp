@@ -138,4 +138,31 @@ dotnet ef database update --project src/Infrastructure --startup-project src/Api
 ```
 При запуску в середовищі `Development` сервіс автоматично застосовує міграції (`Database.Migrate()`) та заповнює базу початковими даними при першому старті.
 
+## Веб-інтерфейс
 
+### Архітектура та режим виконання
+* **Обраний режим:** Blazor Web App у режимі **Interactive Server** (`@rendermode InteractiveServer`).
+* **Де виконується код:** увесь C#-код компонентів та типізований `BooksApiClient` виконуються на стороні сервера `src/Web`, а оновлення DOM передаються у браузер клієнта через постійне з'єднання **SignalR**.
+* **Взаємодія з API та CORS:** `src/Web` не має посилання на `Infrastructure` чи базу даних SQLite і взаємодіє з `src/Api` виключно через HTTP-контракт (`src/Contracts`). Оскільки в режимі Interactive Server запити до API виконуються server-to-server, браузерний CORS їх не блокує, проте в `src/Api` налаштовано політику CORS для origin вебклієнта (`Cors:WebOrigin`) на випадок використання браузерних клієнтів (Blazor WebAssembly / SPA).
+
+### Конфігурація
+* **`src/Api/appsettings.json`**:
+  * `ConnectionStrings:AppDb` — шлях до файлу БД SQLite (`Data Source=data/app.db`).
+  * `Cors:WebOrigin` — дозволений origin вебклієнта (`http://localhost:5090`).
+* **`src/Web/appsettings.json`**:
+  * `Api:BaseUrl` — базова адреса REST API (`http://localhost:5080`).
+
+### Запуск застосунку (два процеси)
+1. **Термінал 1 — запуск REST API (порт `5080`):**
+   ```bash
+   dotnet run --project src/Api --urls http://localhost:5080
+   ```
+   *(Документація Scalar UI доступна за адресою `http://localhost:5080/scalar/v1`)*
+
+2. **Термінал 2 — запуск Blazor-клієнта (порт `5090`):**
+   ```bash
+   dotnet run --project src/Web --urls http://localhost:5090
+   ```
+
+### Скріншот інтерфейсу
+![Каталог книг у Blazor UI](docs/screenshot_web.png)
