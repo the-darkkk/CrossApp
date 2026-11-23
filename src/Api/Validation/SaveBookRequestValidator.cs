@@ -1,4 +1,4 @@
-using Api.Contracts;
+using Contracts;
 using FluentValidation;
 
 namespace Api.Validation;

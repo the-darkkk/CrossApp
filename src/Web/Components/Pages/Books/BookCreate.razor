@@ -1,0 +1,117 @@
+@page "/books/create"
+@rendermode InteractiveServer
+@inject BooksApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Додати книгу</PageTitle>
+
+<h2>Додати книгу</h2>
+
+@if (!string.IsNullOrEmpty(errorMsg))
+{
+    <div class="error-msg">@errorMsg</div>
+}
+
+<EditForm Model="form" OnValidSubmit="HandleSubmit">
+    <DataAnnotationsValidator />
+
+    <div class="form-group">
+        <label>ISBN</label>
+        <input @bind="form.Isbn" />
+        @if (fieldErrors.TryGetValue("Isbn", out var isbnErr))
+        {
+            <span class="validation-message">@isbnErr[0]</span>
+        }
+    </div>
+
+    <div class="form-group">
+        <label>Назва</label>
+        <input @bind="form.Title" />
+        @if (fieldErrors.TryGetValue("Title", out var titleErr))
+        {
+            <span class="validation-message">@titleErr[0]</span>
+        }
+    </div>
+
+    <div class="form-group">
+        <label>Рік</label>
+        <input type="number" @bind="form.Year" />
+        @if (fieldErrors.TryGetValue("Year", out var yearErr))
+        {
+            <span class="validation-message">@yearErr[0]</span>
+        }
+    </div>
+
+    <div class="form-group">
+        <label>Автор</label>
+        <input @bind="form.Author" />
+    </div>
+
+    <div class="form-group">
+        <label>Примірників</label>
+        <input type="number" @bind="form.Copies" />
+        @if (fieldErrors.TryGetValue("Copies", out var copiesErr))
+        {
+            <span class="validation-message">@copiesErr[0]</span>
+        }
+    </div>
+
+    <div class="form-group">
+        <label>Одиниця</label>
+        <input @bind="form.Unit" />
+    </div>
+
+    <div class="form-group">
+        <label>Жанр</label>
+        <input @bind="form.Genre" />
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" disabled="@submitting">Зберегти</button>
+        <button type="button" @onclick='() => Nav.NavigateTo("/")'>Скасувати</button>
+    </div>
+</EditForm>
+
+@code {
+    private BookFormModel form = new() { Year = DateTime.UtcNow.Year, Unit = "прим." };
+    private Dictionary<string, string[]> fieldErrors = [];
+    private string? errorMsg;
+    private bool submitting = false;
+
+    private async Task HandleSubmit()
+    {
+        submitting = true;
+        fieldErrors = [];
+        errorMsg = null;
+
+        var req = new SaveBookRequest(
+            form.Isbn, form.Title, form.Year,
+            string.IsNullOrWhiteSpace(form.Author) ? null : form.Author,
+            form.Copies,
+            string.IsNullOrWhiteSpace(form.Unit) ? "прим." : form.Unit,
+            string.IsNullOrWhiteSpace(form.Genre) ? null : form.Genre);
+
+        var (book, errors, conflict) = await Api.CreateBookAsync(req);
+
+        if (book is not null)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+        if (errors is not null) fieldErrors = errors;
+        if (conflict is not null) errorMsg = $"Конфлікт: {conflict}";
+
+        submitting = false;
+    }
+
+    private class BookFormModel
+    {
+        public string Isbn { get; set; } = "";
+        public string Title { get; set; } = "";
+        public int Year { get; set; }
+        public string Author { get; set; } = "";
+        public int Copies { get; set; } = 1;
+        public string Unit { get; set; } = "прим.";
+        public string Genre { get; set; } = "";
+    }
+}

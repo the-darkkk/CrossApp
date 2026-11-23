@@ -1,0 +1,178 @@
+@page "/"
+@rendermode InteractiveServer
+@inject BooksApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Каталог книг</PageTitle>
+
+<h2>Каталог книг</h2>
+
+<div class="toolbar">
+    <input type="text" placeholder="Пошук..." @bind="searchInput" @onkeydown="OnSearchKeyDown" />
+    <input type="text" placeholder="Автор..." @bind="authorInput" @onkeydown="OnSearchKeyDown" />
+    <button @onclick="ApplySearch">Шукати</button>
+    <a href="/books/create" class="btn-add">Додати книгу</a>
+    <a href="/books/low-stock" class="btn-lowstock">Мало примірників</a>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMsg))
+{
+    <div class="error-msg">@errorMsg</div>
+}
+
+@if (loading)
+{
+    <div class="loading">Завантаження...</div>
+}
+else
+{
+    <table class="books-table">
+        <thead>
+            <tr>
+                <th @onclick='() => SetSort("title")' class="sortable">
+                    Назва @SortIndicator("title")
+                </th>
+                <th @onclick='() => SetSort("author")' class="sortable">
+                    Автор @SortIndicator("author")
+                </th>
+                <th>ISBN</th>
+                <th @onclick='() => SetSort("year")' class="sortable">
+                    Рік @SortIndicator("year")
+                </th>
+                <th @onclick='() => SetSort("copies")' class="sortable">
+                    Примірники @SortIndicator("copies")
+                </th>
+                <th>Одиниця</th>
+                <th>Жанр</th>
+                <th>Дії</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var b in books)
+            {
+                <tr class="@(b.Copies < 5 ? "low-stock" : "")">
+                    <td>@b.Title</td>
+                    <td>@b.Author</td>
+                    <td>@b.Isbn</td>
+                    <td>@b.Year</td>
+                    <td>@b.Copies</td>
+                    <td>@b.Unit</td>
+                    <td>@b.Genre</td>
+                    <td>
+                        <a href="/books/edit/@b.Id" class="btn-edit">Редагувати</a>
+                        @if (confirmDeleteId == b.Id)
+                        {
+                            <span>
+                                Видалити? 
+                                <button @onclick="() => ConfirmDelete(b.Id)" class="btn-danger">Так</button>
+                                <button @onclick="CancelDelete">Ні</button>
+                            </span>
+                        }
+                        else
+                        {
+                            <button @onclick="() => AskDelete(b.Id)" class="btn-danger">Видалити</button>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (books.Count == 0)
+            {
+                <tr><td colspan="8">Книг не знайдено.</td></tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        <button @onclick="PrevPage" disabled="@(currentPage <= 1)">← Назад</button>
+        <span>Сторінка @currentPage з @totalPages (всього @total)</span>
+        <button @onclick="NextPage" disabled="@(currentPage >= totalPages)">Вперед →</button>
+    </div>
+}
+
+@code {
+    private List<BookDto> books = [];
+    private bool loading = true;
+    private string? errorMsg;
+    private string? confirmDeleteId;
+
+    private string searchInput = "";
+    private string authorInput = "";
+    private string activeSearch = "";
+    private string activeAuthor = "";
+
+    private string sortBy = "title";
+    private bool sortDesc = false;
+    private int currentPage = 1;
+    private const int PageSize = 10;
+    private int total = 0;
+    private int totalPages = 1;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        errorMsg = null;
+        try
+        {
+            var result = await Api.GetBooksAsync(activeSearch, activeAuthor, sortBy, sortDesc, currentPage, PageSize);
+            books = result.Items.ToList();
+            total = result.Total;
+            totalPages = (int)Math.Ceiling((double)total / PageSize);
+            if (totalPages < 1) totalPages = 1;
+        }
+        catch
+        {
+            errorMsg = "Не вдалося завантажити дані. Перевірте з'єднання з сервером.";
+            books = [];
+        }
+        loading = false;
+    }
+
+    private async Task ApplySearch()
+    {
+        activeSearch = searchInput;
+        activeAuthor = authorInput;
+        currentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ApplySearch();
+    }
+
+    private async Task SetSort(string column)
+    {
+        if (sortBy == column) sortDesc = !sortDesc;
+        else { sortBy = column; sortDesc = false; }
+        await LoadAsync();
+    }
+
+    private string SortIndicator(string column)
+    {
+        if (sortBy != column) return "";
+        return sortDesc ? "▼" : "▲";
+    }
+
+    private async Task PrevPage()
+    {
+        if (currentPage > 1) { currentPage--; await LoadAsync(); }
+    }
+
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages) { currentPage++; await LoadAsync(); }
+    }
+
+    private void AskDelete(string id) => confirmDeleteId = id;
+    private void CancelDelete() => confirmDeleteId = null;
+
+    private async Task ConfirmDelete(string id)
+    {
+        confirmDeleteId = null;
+        var ok = await Api.DeleteBookAsync(id);
+        if (!ok) errorMsg = "Не вдалося видалити книгу.";
+        await LoadAsync();
+    }
+}

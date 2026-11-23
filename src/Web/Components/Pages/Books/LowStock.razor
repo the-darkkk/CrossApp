@@ -1,0 +1,85 @@
+@page "/books/low-stock"
+@rendermode InteractiveServer
+@inject BooksApiClient Api
+
+<PageTitle>Мало примірників</PageTitle>
+
+<h2>Книги з малою кількістю примірників</h2>
+
+<div class="toolbar">
+    <label>
+        Поріг:
+        <input type="number" @bind="threshold" min="1" max="100" style="width:70px" />
+    </label>
+    <button @onclick="LoadAsync">Оновити</button>
+    <a href="/">← Каталог</a>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMsg))
+{
+    <div class="error-msg">@errorMsg</div>
+}
+
+@if (loading)
+{
+    <div class="loading">Завантаження...</div>
+}
+else
+{
+    <table class="books-table">
+        <thead>
+            <tr>
+                <th>Назва</th>
+                <th>Автор</th>
+                <th>ISBN</th>
+                <th>Рік</th>
+                <th>Примірники</th>
+                <th>Одиниця</th>
+                <th>Жанр</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var b in books)
+            {
+                <tr class="low-stock">
+                    <td>@b.Title</td>
+                    <td>@b.Author</td>
+                    <td>@b.Isbn</td>
+                    <td>@b.Year</td>
+                    <td>@b.Copies</td>
+                    <td>@b.Unit</td>
+                    <td>@b.Genre</td>
+                </tr>
+            }
+            @if (books.Count == 0)
+            {
+                <tr><td colspan="7">Немає книг з кількістю примірників нижче @threshold.</td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<BookDto> books = [];
+    private int threshold = 5;
+    private bool loading = true;
+    private string? errorMsg;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        errorMsg = null;
+        try
+        {
+            books = await Api.GetLowStockAsync(threshold);
+        }
+        catch
+        {
+            errorMsg = "Не вдалося завантажити дані.";
+            books = [];
+        }
+        loading = false;
+    }
+}

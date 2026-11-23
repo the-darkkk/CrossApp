@@ -30,10 +30,16 @@ builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlite(csb.ConnectionStrin
 builder.Services.AddScoped<ICatalogStore, EfCatalogStore>();
 builder.Services.AddScoped<IAsyncCatalogStore, EfCatalogStore>();
 
+builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+    p.WithOrigins(builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:5090")
+     .AllowAnyMethod()
+     .AllowAnyHeader()));
+
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseCors();
 
 if (app.Environment.IsDevelopment())
 {

@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
-using Api.Contracts;
 using Api.Validation;
+using Contracts;
 using Core.Abstractions;
 using Core.Domain;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -13,34 +13,36 @@ public static class BookEndpoints
     {
         var group = app.MapGroup("/api/books").WithTags("Books");
 
-        // GET /api/books (з підтримкою пагінації, пошуку та фільтрації за автором)
-        group.MapGet("/", (ICatalogStore store, string? search, string? author, int? page, int? pageSize) =>
+        // GET /api/books (пагінація, пошук, фільтр за автором, сортування)
+        group.MapGet("/", (ICatalogStore store, string? search, string? author,
+            string? sortBy, bool? sortDesc, int? page, int? pageSize) =>
         {
             var list = store.List();
 
             if (!string.IsNullOrWhiteSpace(author))
-            {
                 list = list.Where(b => b.Author != null &&
                     b.Author.Contains(author, StringComparison.OrdinalIgnoreCase)).ToList();
-            }
 
             if (!string.IsNullOrWhiteSpace(search))
-            {
                 list = list.Where(b =>
                     b.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                     b.Isbn.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                     (b.Author != null && b.Author.Contains(search, StringComparison.OrdinalIgnoreCase))).ToList();
-            }
+
+            list = sortBy?.ToLowerInvariant() switch
+            {
+                "title"  => sortDesc == true ? list.OrderByDescending(b => b.Title).ToList()  : list.OrderBy(b => b.Title).ToList(),
+                "year"   => sortDesc == true ? list.OrderByDescending(b => b.Year).ToList()   : list.OrderBy(b => b.Year).ToList(),
+                "author" => sortDesc == true ? list.OrderByDescending(b => b.Author).ToList() : list.OrderBy(b => b.Author).ToList(),
+                "copies" => sortDesc == true ? list.OrderByDescending(b => b.Quantity).ToList(): list.OrderBy(b => b.Quantity).ToList(),
+                _ => list
+            };
 
             if (page.HasValue || pageSize.HasValue)
             {
-                int p = page.GetValueOrDefault(1);
-                if (p < 1) p = 1;
-                int ps = pageSize.GetValueOrDefault(20);
-                if (ps < 1) ps = 20;
-
-                var pagedItems = list.Skip((p - 1) * ps).Take(ps)
-                    .Select(ToDto).ToList();
+                int p = Math.Max(1, page.GetValueOrDefault(1));
+                int ps = Math.Max(1, pageSize.GetValueOrDefault(20));
+                var pagedItems = list.Skip((p - 1) * ps).Take(ps).Select(ToDto).ToList();
                 return Results.Ok(new PagedResult<BookDto>(pagedItems, list.Count, p, ps));
             }
 
@@ -68,11 +70,9 @@ public static class BookEndpoints
                 return TypedResults.ValidationProblem(errors);
 
             var id = Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant();
-            var book = Book.Create(id, request.Isbn, request.Title, request.Year, request.Author);
+            var book = Book.Create(id, request.Isbn, request.Title, request.Year, request.Author, request.Unit, request.Genre);
             for (int i = 1; i <= request.Copies; i++)
-            {
                 book.AddCopy($"BC-{id}-{i:D2}");
-            }
             store.Add(book);
 
             return TypedResults.Created($"/api/books/{book.Id}", ToDto(book));
@@ -87,11 +87,9 @@ public static class BookEndpoints
             if (store.GetById(id) is null)
                 return TypedResults.NotFound();
 
-            var replacement = Book.Create(id, request.Isbn, request.Title, request.Year, request.Author);
+            var replacement = Book.Create(id, request.Isbn, request.Title, request.Year, request.Author, request.Unit, request.Genre);
             for (int i = 1; i <= request.Copies; i++)
-            {
                 replacement.AddCopy($"BC-{id}-{i:D2}");
-            }
             store.Update(replacement);
 
             return TypedResults.Ok(ToDto(replacement));
@@ -105,5 +103,5 @@ public static class BookEndpoints
     }
 
     private static BookDto ToDto(Book b) =>
-        new(b.Id, b.Isbn, b.Title, b.Year, b.Author, b.Copies.Count, b.Unit);
+        new(b.Id, b.Isbn, b.Title, b.Year, b.Author, b.Copies.Count, b.Unit, b.Genre);
 }

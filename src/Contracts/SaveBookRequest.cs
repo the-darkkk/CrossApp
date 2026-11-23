@@ -1,6 +1,13 @@
-namespace Api.Contracts;
+namespace Contracts;
 
-public sealed record SaveBookRequest(string Isbn, string Title, int Year, string? Author = null, int Copies = 1)
+public sealed record SaveBookRequest(
+    string Isbn,
+    string Title,
+    int Year,
+    string? Author = null,
+    int Copies = 1,
+    string Unit = "прим.",
+    string? Genre = null)
 {
     public bool TryValidate(out Dictionary<string, string[]> errors)
     {
@@ -15,4 +22,3 @@ public sealed record SaveBookRequest(string Isbn, string Title, int Year, string
         return found.Count == 0;
     }
 }
-
